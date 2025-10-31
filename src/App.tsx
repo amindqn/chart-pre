@@ -36,7 +36,7 @@ const DEFAULT_CHART_OPTIONS: ChartDisplayOptions = {
 };
 
 function App() {
-  const [mode, setMode] = useState<PlotMode>('function');
+  const [mode] = useState<PlotMode>('function');
   const { theme, toggleTheme } = useThemePreference();
   const functionManager = useFunctionManager();
   const datasetManager = useDatasetManager();
