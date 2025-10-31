@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { WheelEvent as ReactWheelEvent } from 'react';
 import type { ChartData, ChartOptions as ChartJsOptions } from 'chart.js';
 import { Line } from 'react-chartjs-2';
@@ -145,6 +145,42 @@ export const ChartDisplay = ({
     lastClientX: number;
   } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const overflowRestoreRef = useRef<string | null>(null);
+
+  const lockBodyScroll = useCallback(() => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+    if (overflowRestoreRef.current !== null) {
+      return;
+    }
+    overflowRestoreRef.current = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+  }, []);
+
+  const unlockBodyScroll = useCallback(() => {
+    if (typeof document === 'undefined') {
+      return;
+    }
+    if (overflowRestoreRef.current === null) {
+      return;
+    }
+    document.body.style.overflow = overflowRestoreRef.current;
+    overflowRestoreRef.current = null;
+  }, []);
+
+  useEffect(
+    () => () => {
+      unlockBodyScroll();
+    },
+    [unlockBodyScroll]
+  );
+
+  useEffect(() => {
+    if (!hasData || !viewport) {
+      unlockBodyScroll();
+    }
+  }, [hasData, viewport, unlockBodyScroll]);
 
   const handleWheel = useCallback(
     (event: ReactWheelEvent<HTMLDivElement>) => {
@@ -174,6 +210,24 @@ export const ChartDisplay = ({
     },
     [hasData, viewport, onZoomIn, onZoomOut]
   );
+
+  const handlePointerEnter = useCallback(() => {
+    if (!hasData || !viewport) {
+      return;
+    }
+    lockBodyScroll();
+  }, [hasData, viewport, lockBodyScroll]);
+
+  const handleMouseEnter = useCallback(() => {
+    if (!hasData || !viewport) {
+      return;
+    }
+    lockBodyScroll();
+  }, [hasData, viewport, lockBodyScroll]);
+
+  const handleMouseLeave = useCallback(() => {
+    unlockBodyScroll();
+  }, [unlockBodyScroll]);
 
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
@@ -265,16 +319,14 @@ export const ChartDisplay = ({
 
   const handlePointerLeave = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
-      if (!dragStateRef.current) {
-        return;
-      }
       endDrag(event);
+      unlockBodyScroll();
     },
-    [endDrag]
+    [endDrag, unlockBodyScroll]
   );
 
   const containerClasses = [
-    'relative h-[70vh] w-full overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900/5 via-white to-blue-100 p-4',
+    'relative h-[70vh] w-full overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900/5 via-white to-blue-100 p-4 touch-none',
     hasData && viewport ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default',
   ].join(' ');
 
@@ -296,6 +348,9 @@ export const ChartDisplay = ({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerLeave}
         onPointerLeave={handlePointerLeave}
+        onPointerEnter={handlePointerEnter}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
       >
         {hasData ? (
           <Line options={chartOptions} data={renderedChartData} />
