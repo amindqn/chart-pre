@@ -47,7 +47,7 @@ export const DataSeriesCard = ({
         }
       }}
       className={[
-        'rounded-xl border p-4 transition-colors focus:outline-none max-h-100 overflow-auto',
+        'rounded-xl border p-4 transition-colors focus:outline-none max-h-120 overflow-auto',
         isActive
           ? 'border-blue-500 shadow-md ring-2 ring-blue-200'
           : 'border-slate-200 hover:border-blue-300',

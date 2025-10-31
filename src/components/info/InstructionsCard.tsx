@@ -1,9 +1,4 @@
-import type { PlotMode } from '../../types/plot';
 import { Panel } from '../common/Panel';
-
-interface InstructionsCardProps {
-  mode: PlotMode;
-}
 
 const FUNCTION_NOTES = [
   'Use the variable x to define expressions.',
@@ -20,16 +15,25 @@ const DATA_NOTES = [
   'Keep at least two valid points visible to render a curve.',
 ];
 
-export const InstructionsCard = ({ mode }: InstructionsCardProps) => {
-  const notes = mode === 'function' ? FUNCTION_NOTES : DATA_NOTES;
-
-  return (
-    <Panel title="Tips">
-      <ul className="list-inside list-disc space-y-1 text-sm text-slate-600">
-        {notes.map((note) => (
-          <li key={note}>{note}</li>
-        ))}
-      </ul>
-    </Panel>
-  );
-};
+export const InstructionsCard = () => (
+  <Panel title="Tips">
+    <div className="space-y-3 text-sm text-slate-600">
+      <div>
+        <p className="mb-1 font-semibold text-slate-700">Functions</p>
+        <ul className="list-inside list-disc space-y-1">
+          {FUNCTION_NOTES.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
+      </div>
+      <div>
+        <p className="mb-1 font-semibold text-slate-700">Datasets</p>
+        <ul className="list-inside list-disc space-y-1">
+          {DATA_NOTES.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  </Panel>
+);
