@@ -7,6 +7,7 @@ import type {
   PlotStats,
   SeriesStats,
 } from '../types/plot';
+import { calculateAreaUnderCurve } from '../utils/calculateAreaUnderCurve';
 
 const EMPTY_DATA: ChartData<'line'> = {
   labels: [],
@@ -80,6 +81,7 @@ export const useDatasetPlot = (
         maxY: points.length ? Math.max(...points.map((p) => p.y)) : null,
         minX: points.length ? Math.min(...points.map((p) => p.x)) : null,
         maxX: points.length ? Math.max(...points.map((p) => p.x)) : null,
+        areaUnderCurve: null,
       };
 
       if (points.length < 2 && series.visible) {
@@ -120,6 +122,16 @@ export const useDatasetPlot = (
         };
       }),
     };
+
+    normalizedSeries.forEach(({ stats, meta }, index) => {
+      if (!options.fillArea || !meta.visible) {
+        stats.areaUnderCurve = null;
+        return;
+      }
+
+      const datasetValues = chartData.datasets[index]?.data as Array<number | null>;
+      stats.areaUnderCurve = calculateAreaUnderCurve(labels, datasetValues);
+    });
 
     const aggregateStats = normalizedSeries.map(({ stats }) => stats);
     const domainCandidates = aggregateStats.filter(

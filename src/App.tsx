@@ -158,6 +158,7 @@ function App() {
               onPanLeft={viewportControls.panLeft}
               onPanRight={viewportControls.panRight}
               onResetView={viewportControls.reset}
+              onPanByOffset={viewportControls.panByOffset}
             />
 
             {mode === 'dataset' && datasetManager.importFeedback && (

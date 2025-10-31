@@ -47,6 +47,7 @@ export interface SeriesStats {
   maxY: number | null;
   minX: number | null;
   maxX: number | null;
+  areaUnderCurve: number | null;
 }
 
 export interface PlotStats {

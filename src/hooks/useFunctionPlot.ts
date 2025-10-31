@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { ChartData } from 'chart.js';
 
 import { evaluateExpression } from '../utils/evaluateExpression';
+import { calculateAreaUnderCurve } from '../utils/calculateAreaUnderCurve';
 import type {
   ChartDisplayOptions,
   DomainSettings,
@@ -73,6 +74,7 @@ export const useFunctionPlot = (
             maxY: null,
             minX: null,
             maxX: null,
+            areaUnderCurve: null,
           })),
         },
       };
@@ -96,6 +98,7 @@ export const useFunctionPlot = (
             maxY: null,
             minX: null,
             maxX: null,
+            areaUnderCurve: null,
           })),
         },
       };
@@ -125,6 +128,7 @@ export const useFunctionPlot = (
       maxY: null,
       minX: null,
       maxX: null,
+      areaUnderCurve: null,
     }));
 
     for (
@@ -184,12 +188,23 @@ export const useFunctionPlot = (
       }),
     };
 
+    statsPerFunction.forEach((stat, idx) => {
+      if (!options.fillArea || !functions[idx]?.visible) {
+        stat.areaUnderCurve = null;
+        return;
+      }
+
+      const area = calculateAreaUnderCurve(labels, datasets[idx]);
+      stat.areaUnderCurve = area;
+    });
+
     statsPerFunction.forEach((stat) => {
       if (stat.validPoints === 0) {
         stat.minY = null;
         stat.maxY = null;
         stat.minX = null;
         stat.maxX = null;
+        stat.areaUnderCurve = null;
         if (stat.visible) {
           warnings.push(
             `Function "${stat.label}" did not produce valid values in the selected domain.`

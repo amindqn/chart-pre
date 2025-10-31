@@ -64,11 +64,19 @@ export const FunctionSummary = ({
                     Min f(x): {fn.minY ?? 'N/A'} | Max f(x): {fn.maxY ?? 'N/A'}
                   </span>
                   <span>Visible: {fn.visible ? 'yes' : 'no'}</span>
+                  {fn.areaUnderCurve !== null && (
+                    <span>
+                      Filled area ≈{' '}
+                      {fn.areaUnderCurve.toLocaleString(undefined, {
+                        maximumFractionDigits: 4,
+                      })}
+                    </span>
+                  )}
                 </div>
               </div>
             );
-        })}
-      </div>
+          })}
+        </div>
       </div>
     </Panel>
   );

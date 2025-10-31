@@ -125,6 +125,56 @@ export const useChartViewport = (chartData: ChartData<'line'>) => {
     [viewport, bounds]
   );
 
+  const panByOffset = useCallback(
+    (delta: number) => {
+      if (!bounds || Math.abs(delta) < 1e-12) {
+        return;
+      }
+
+      setViewport((prev) => {
+        if (!prev) {
+          return prev;
+        }
+
+        const range = prev.xMax - prev.xMin;
+        if (range <= 0) {
+          return prev;
+        }
+
+        let newMin = prev.xMin + delta;
+        let newMax = prev.xMax + delta;
+
+        if (newMin < bounds.xMin) {
+          const adjustment = bounds.xMin - newMin;
+          newMin += adjustment;
+          newMax += adjustment;
+        }
+        if (newMax > bounds.xMax) {
+          const adjustment = newMax - bounds.xMax;
+          newMin -= adjustment;
+          newMax -= adjustment;
+        }
+
+        newMin = clamp(newMin, bounds.xMin, bounds.xMax);
+        newMax = clamp(newMax, bounds.xMin, bounds.xMax);
+
+        if (newMax - newMin < 1e-6) {
+          return prev;
+        }
+
+        if (
+          Math.abs(newMin - prev.xMin) < 1e-9 &&
+          Math.abs(newMax - prev.xMax) < 1e-9
+        ) {
+          return prev;
+        }
+
+        return { ...prev, xMin: newMin, xMax: newMax };
+      });
+    },
+    [bounds]
+  );
+
   const reset = useCallback(() => {
     if (bounds) {
       setViewport(bounds);
@@ -140,5 +190,6 @@ export const useChartViewport = (chartData: ChartData<'line'>) => {
     panLeft: () => pan('left'),
     panRight: () => pan('right'),
     reset,
+    panByOffset,
   };
 };

@@ -46,6 +46,14 @@ export const DatasetSummary = ({ stats }: DatasetSummaryProps) => {
                   Y span: {series.minY ?? 'N/A'} → {series.maxY ?? 'N/A'}
                 </span>
                 <span>Visible: {series.visible ? 'yes' : 'no'}</span>
+                {series.areaUnderCurve !== null && (
+                  <span>
+                    Filled area ≈{' '}
+                    {series.areaUnderCurve.toLocaleString(undefined, {
+                      maximumFractionDigits: 4,
+                    })}
+                  </span>
+                )}
               </div>
             </div>
           ))}
