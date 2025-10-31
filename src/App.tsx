@@ -8,7 +8,7 @@ import { DatasetSummary } from './components/info/DatasetSummary';
 import { FunctionSummary } from './components/info/FunctionSummary';
 import { InstructionsCard } from './components/info/InstructionsCard';
 import { WarningsList } from './components/info/WarningsList';
-import { ModeToggle } from './components/layout/ModeToggle';
+//import { ModeToggle } from './components/layout/ModeToggle';
 import { ThemeToggle } from './components/layout/ThemeToggle';
 import { useChartComposition } from './hooks/useChartComposition';
 import { useChartViewport } from './hooks/useChartViewport';
@@ -72,13 +72,13 @@ function App() {
     [functionManager.functions]
   );
 
-  const handleModeChange = useCallback(
+  /*const handleModeChange = useCallback(
     (value: PlotMode) => {
       setMode(value);
       datasetManager.resetImportFeedback();
     },
     [datasetManager]
-  );
+  );*/
 
   const handleDomainChange = useCallback((patch: Partial<DomainSettings>) => {
     setDomain((prev) => ({ ...prev, ...patch }));
