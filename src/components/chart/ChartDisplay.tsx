@@ -7,6 +7,11 @@ import type { ChartDisplayOptions } from '../../types/plot';
 import { Panel } from '../common/Panel';
 import { ChartToolbar } from './ChartToolbar';
 
+const parseLabel = (value: number | string): number | null => {
+  const parsed = Number.parseFloat(String(value));
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 interface ChartViewport {
   xMin: number;
   xMax: number;
@@ -19,8 +24,8 @@ interface ChartDisplayProps {
   options: ChartDisplayOptions;
   viewport: ChartViewport | null;
   onDownloadCsv: () => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
+  onZoomIn: (anchor?: number, factor?: number) => void;
+  onZoomOut: (anchor?: number, factor?: number) => void;
   onPanLeft: () => void;
   onPanRight: () => void;
   onResetView: () => void;
@@ -37,6 +42,45 @@ export const ChartDisplay = ({
   onPanRight,
   onResetView,
 }: ChartDisplayProps) => {
+  const renderedChartData = useMemo<ChartData<'line'>>(() => {
+    const labels = (chartData.labels ?? []) as Array<number | string>;
+    const numericLabels = labels.map((label) => parseLabel(label));
+
+    return {
+      ...chartData,
+      datasets: chartData.datasets.map((dataset) => {
+        if (!Array.isArray(dataset.data)) {
+          return dataset;
+        }
+
+        const points = numericLabels.reduce<Array<{ x: number; y: number }>>(
+          (accumulator, label, index) => {
+            if (label === null) {
+              return accumulator;
+            }
+
+            const value = dataset.data[index];
+            if (typeof value === 'number' && Number.isFinite(value)) {
+              accumulator.push({ x: label, y: value });
+            }
+
+            return accumulator;
+          },
+          []
+        );
+
+        return {
+          ...dataset,
+          parsing: {
+            xAxisKey: 'x',
+            yAxisKey: 'y',
+          },
+          data: points,
+        };
+      }),
+    };
+  }, [chartData]);
+
   const chartOptions = useMemo<ChartJsOptions<'line'>>(
     () => ({
       responsive: true,
@@ -57,12 +101,16 @@ export const ChartDisplay = ({
         },
         tooltip: {
           callbacks: {
-            title: (context) => `x = ${context[0]?.label ?? ''}`,
+            title: (context) => {
+              const parsedX = context[0]?.parsed?.x;
+              return typeof parsedX === 'number' ? `x = ${parsedX}` : '';
+            },
           },
         },
       },
       scales: {
         x: {
+          type: 'linear',
           title: {
             display: true,
             text: 'x',
@@ -95,16 +143,26 @@ export const ChartDisplay = ({
     if (!hasData) {
       return;
     }
+    if (!viewport) {
+      return;
+    }
     event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect();
+    const ratio = Math.min(
+      Math.max((event.clientX - rect.left) / rect.width, 0),
+      1
+    );
+    const anchor = viewport.xMin + ratio * (viewport.xMax - viewport.xMin);
+    const strength = 1 + Math.min(Math.abs(event.deltaY) / 500, 0.7);
     if (event.deltaY < 0) {
-      onZoomIn();
+      onZoomIn(anchor, 1 / strength);
     } else if (event.deltaY > 0) {
-      onZoomOut();
+      onZoomOut(anchor, strength);
     }
   };
 
   return (
-    <Panel title="Chart" className=" space-y-5">
+    <Panel title="Chart" className="space-y-5">
       <ChartToolbar
         onZoomIn={onZoomIn}
         onZoomOut={onZoomOut}
@@ -118,7 +176,7 @@ export const ChartDisplay = ({
         onWheel={handleWheel}
       >
         {hasData ? (
-          <Line options={chartOptions} data={chartData} />
+          <Line options={chartOptions} data={renderedChartData} />
         ) : (
           <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white/70">
             <p className="text-sm font-medium text-slate-500">

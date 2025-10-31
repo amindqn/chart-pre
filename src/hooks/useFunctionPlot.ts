@@ -167,7 +167,7 @@ export const useFunctionPlot = (
         const fillColor = hexToRgba(baseColor, 0.16);
         return {
           id: fn.id,
-          label: `${fn.label}(x) = ${fn.expression}`,
+          label: `${fn.label} = ${fn.expression}`,
           data: datasets[idx],
           borderColor: baseColor,
           backgroundColor: fillColor,

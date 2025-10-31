@@ -160,7 +160,7 @@ function App() {
               onResetView={viewportControls.reset}
             />
 
-            {datasetManager.importFeedback && (
+            {mode === 'dataset' && datasetManager.importFeedback && (
               <div className="flex items-start justify-between gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
                 <span>{datasetManager.importFeedback}</span>
                 <button

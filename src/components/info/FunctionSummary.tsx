@@ -51,7 +51,7 @@ export const FunctionSummary = ({
               >
                 <p className="text-slate-700">
                   <span className="font-semibold text-slate-800">
-                    {fn.label}(x)
+                    {fn.label}
                   </span>{' '}
                   ={' '}
                   <span className="math-display text-base">
