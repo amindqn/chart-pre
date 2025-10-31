@@ -2,6 +2,8 @@
 
 This project bundles a full-featured plotting playground built with **React 19**, **TypeScript**, **Vite**, and **Chart.js/React Chart.js 2**. Users can mix analytic functions with imported datasets, inspect statistics, and explore the graph with smooth zooming/panning. A polished UI with light/dark theming keeps the experience friendly on desktop and touch devices alike.
 
+![App preview](public/preview.png)
+
 ## ✨ Highlights
 
 - Plot unlimited (practically) analytic expressions using familiar math syntax (`sin(x)`, `x^2`, `log(x, base)`, etc.).
@@ -30,14 +32,14 @@ npm run preview
 
 ## 🧮 Core Concepts
 
-| Feature | Details |
-| --- | --- |
-| Function plotting | Expressions are parsed/sanitised (`src/utils/evaluateExpression.ts`) and sampled over a configurable domain. Auto step adjustment prevents >5k points. |
-| Dataset management | `useDatasetManager` handles CRUD, file imports, per-point edits, and selection. `useDatasetPlot` normalises series for chart consumption and produces stats. |
-| Composition | `useChartComposition` merges function & dataset outputs and deduplicates warnings. `mergeChartData` interleaves labels so all series align. |
-| Viewport | `useChartViewport` tracks bounds, providing zoom & pan logic consumed by `ChartDisplay`. Drag gestures translate the window; wheel zoom honours the cursor anchor. |
-| Display | `ChartDisplay` houses the Chart.js `<Line>` instance, renders toolbar controls, overlays intersection markers via a custom plugin, and syncs tooltip copy. |
-| Theming | `useThemePreference` + `ThemeToggle` maintain a persistent light/dark palette. Tailored CSS variables (`src/index.css`) restyle panels, inputs, borders, etc. |
+| Feature            | Details                                                                                                                                                                |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Function plotting  | Expressions are parsed/sanitised (`src/utils/evaluateExpression.ts`) and sampled over a configurable domain. Auto step adjustment prevents >5k points.               |
+| Dataset management | `useDatasetManager` handles CRUD, file imports, per-point edits, and selection. `useDatasetPlot` normalises series for chart consumption and produces stats.       |
+| Composition        | `useChartComposition` merges function & dataset outputs and deduplicates warnings. `mergeChartData` interleaves labels so all series align.                        |
+| Viewport           | `useChartViewport` tracks bounds, providing zoom & pan logic consumed by `ChartDisplay`. Drag gestures translate the window; wheel zoom honours the cursor anchor. |
+| Display            | `ChartDisplay` houses the Chart.js `<Line>` instance, renders toolbar controls, overlays intersection markers via a custom plugin, and syncs tooltip copy.         |
+| Theming            | `useThemePreference` + `ThemeToggle` maintain a persistent light/dark palette. Tailored CSS variables (`src/index.css`) restyle panels, inputs, borders, etc.    |
 
 ## 🧭 Project Structure
 
@@ -58,12 +60,12 @@ src/
 
 ## 🛠️ Commands
 
-| Script | Purpose |
-| --- | --- |
-| `npm run dev` | Start Vite dev server with HMR |
-| `npm run build` | Type-check then build production bundle |
-| `npm run preview` | Preview production output locally |
-| `npm run lint` | Run ESLint across the codebase |
+| Script              | Purpose                                 |
+| ------------------- | --------------------------------------- |
+| `npm run dev`     | Start Vite dev server with HMR          |
+| `npm run build`   | Type-check then build production bundle |
+| `npm run preview` | Preview production output locally       |
+| `npm run lint`    | Run ESLint across the codebase          |
 
 ## 📦 Dependencies
 
