@@ -17,6 +17,12 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  color: #e2e8f0;
+  background-color: #0f172a;
+}
+
 a {
   font-weight: 500;
   color: #646cff;
@@ -50,10 +56,109 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+}
+
+body.theme-light {
   background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 45%, #e0f2fe 100%);
+  color: #213547;
+}
+
+body.theme-dark {
+  background: radial-gradient(120% 120% at 50% 0%, #0f172a 0%, #020617 100%);
+  color: #e2e8f0;
+}
+
+body.theme-dark a {
+  color: #38bdf8;
+}
+
+body.theme-dark a:hover {
+  color: #0ea5e9;
 }
 
 .glass-panel {
   background-color: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(12px);
+}
+
+body.theme-dark .glass-panel {
+  background-color: rgba(15, 23, 42, 0.8);
+  border-color: rgba(148, 163, 184, 0.28);
+  box-shadow: 0 30px 60px rgba(15, 23, 42, 0.35), 0 12px 24px rgba(2, 6, 23, 0.4);
+}
+
+body.theme-dark .glass-panel h2 {
+  color: #e2e8f0;
+}
+
+body.theme-dark input,
+body.theme-dark select {
+  color: #e2e8f0;
+  background-color: rgba(15, 23, 42, 0.8);
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+body.theme-dark input::placeholder {
+  color: #64748b;
+}
+
+body.theme-dark .text-slate-900,
+body.theme-dark .text-slate-800,
+body.theme-dark .text-slate-700 {
+  color: #e2e8f0 !important;
+}
+
+body.theme-dark .text-slate-600 {
+  color: #cbd5f5 !important;
+}
+
+body.theme-dark .text-slate-500 {
+  color: #a5b4fc !important;
+}
+
+body.theme-dark .text-slate-400 {
+  color: #94a3b8 !important;
+}
+
+body.theme-dark .bg-white,
+body.theme-dark .bg-white\/70,
+body.theme-dark .bg-white\/80,
+body.theme-dark .bg-slate-50,
+body.theme-dark .bg-slate-50\/60 {
+  background-color: rgba(30, 41, 59, 0.85) !important;
+}
+
+body.theme-dark .bg-white\/70 {
+  background-color: rgba(30, 41, 59, 0.7) !important;
+}
+
+body.theme-dark .bg-white\/80 {
+  background-color: rgba(30, 41, 59, 0.8) !important;
+}
+
+body.theme-dark .border-slate-200,
+body.theme-dark .border-slate-200\/60,
+body.theme-dark .border-slate-300,
+body.theme-dark .border-slate-300\/60 {
+  border-color: rgba(148, 163, 184, 0.3) !important;
+}
+
+body.theme-dark .shadow-xl {
+  box-shadow: 0 30px 60px rgba(15, 23, 42, 0.35), 0 12px 24px rgba(2, 6, 23, 0.4) !important;
+}
+
+body.theme-dark .theme-toggle-dark {
+  background-color: rgba(30, 41, 59, 0.85);
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #e2e8f0;
+}
+
+body.theme-dark .theme-toggle-light {
+  background-color: rgba(248, 250, 252, 0.7);
+}
+
+body.theme-dark .theme-toggle-dark:hover,
+body.theme-dark .theme-toggle-dark:focus-visible {
+  border-color: #38bdf8;
+  color: #38bdf8;
 }

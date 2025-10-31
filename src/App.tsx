@@ -9,12 +9,14 @@ import { FunctionSummary } from './components/info/FunctionSummary';
 import { InstructionsCard } from './components/info/InstructionsCard';
 import { WarningsList } from './components/info/WarningsList';
 import { ModeToggle } from './components/layout/ModeToggle';
+import { ThemeToggle } from './components/layout/ThemeToggle';
 import { useChartComposition } from './hooks/useChartComposition';
 import { useChartViewport } from './hooks/useChartViewport';
 import { useDatasetManager } from './hooks/useDatasetManager';
 import { useDatasetPlot } from './hooks/useDatasetPlot';
 import { useFunctionManager } from './hooks/useFunctionManager';
 import { useFunctionPlot } from './hooks/useFunctionPlot';
+import { useThemePreference } from './hooks/useThemePreference';
 import type { ChartDisplayOptions, DomainSettings, PlotMode } from './types/plot';
 
 const DEFAULT_DOMAIN: DomainSettings = {
@@ -35,6 +37,7 @@ const DEFAULT_CHART_OPTIONS: ChartDisplayOptions = {
 
 function App() {
   const [mode, setMode] = useState<PlotMode>('function');
+  const { theme, toggleTheme } = useThemePreference();
   const functionManager = useFunctionManager();
   const datasetManager = useDatasetManager();
 
@@ -132,7 +135,7 @@ function App() {
   }, [chartComposition.combinedChart]);
 
   return (
-    <div className="min-h-screen pb-16">
+    <div className="min-h-screen pb-16 transition-colors duration-300">
       <div className="mx-auto flex max-w-7xl flex-col gap-8 px-6 py-10">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-1">
@@ -143,7 +146,10 @@ function App() {
               Plot analytic formulas alongside imported data on a single interactive chart.
             </p>
           </div>
-          <ModeToggle mode={mode} onModeChange={handleModeChange} />
+          <div className="flex items-center gap-3">
+            <ThemeToggle theme={theme} onToggle={toggleTheme} />
+            {/* <ModeToggle mode={mode} onModeChange={handleModeChange} /> */}
+          </div>
         </header>
 
         <div className="grid gap-8 xl:grid-cols-[2fr,1fr]">
@@ -152,6 +158,7 @@ function App() {
               chartData={chartComposition.combinedChart}
               options={chartOptions}
               viewport={viewportControls.viewport}
+              theme={theme}
               onDownloadCsv={handleDownloadCsv}
               onZoomIn={viewportControls.zoomIn}
               onZoomOut={viewportControls.zoomOut}

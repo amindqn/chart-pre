@@ -10,7 +10,7 @@ interface PanelProps {
 export const Panel = ({ title, actions, children, className }: PanelProps) => (
   <section
     className={[
-      'glass-panel rounded-2xl shadow-xl border border-slate-200/60 p-6 space-y-4',
+      'glass-panel rounded-2xl shadow-xl border border-slate-200/60 p-6 space-y-4 transition-colors duration-300',
       className ?? '',
     ]
       .filter(Boolean)
