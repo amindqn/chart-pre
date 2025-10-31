@@ -231,7 +231,10 @@ export const ChartDisplay = ({
         pointBorderColor: '#c2410c',
         pointRadius: 5,
         pointHoverRadius: 7,
+        pointBorderWidth: 2,
+        pointHoverBorderWidth: 2,
         showLine: false,
+        order: Number.MAX_SAFE_INTEGER,
         parsing: {
           xAxisKey: 'x',
           yAxisKey: 'y',
@@ -337,6 +340,7 @@ export const ChartDisplay = ({
   const dragStateRef = useRef<{
     pointerId: number;
     lastClientX: number;
+    isActive: boolean;
   } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const overflowRestoreRef = useRef<string | null>(null);
@@ -428,18 +432,15 @@ export const ChartDisplay = ({
       if (!hasData || !viewport) {
         return;
       }
-
-      event.preventDefault();
-      event.stopPropagation();
+      if (event.pointerType === 'mouse' && event.button !== 0) {
+        return;
+      }
 
       dragStateRef.current = {
         pointerId: event.pointerId,
         lastClientX: event.clientX,
+        isActive: false,
       };
-      setIsDragging(true);
-      if (event.currentTarget.setPointerCapture) {
-        event.currentTarget.setPointerCapture(event.pointerId);
-      }
     },
     [hasData, viewport]
   );
@@ -454,18 +455,27 @@ export const ChartDisplay = ({
         return;
       }
 
-      event.preventDefault();
-      event.stopPropagation();
-
       const rect = event.currentTarget.getBoundingClientRect();
       if (rect.width <= 0) {
         return;
       }
 
       const deltaX = event.clientX - dragState.lastClientX;
-      if (Math.abs(deltaX) < 0.5) {
-        return;
+      const hasSignificantMovement = Math.abs(deltaX) >= 1;
+
+      if (!dragState.isActive) {
+        if (!hasSignificantMovement) {
+          return;
+        }
+        dragState.isActive = true;
+        setIsDragging(true);
+        if (event.currentTarget.setPointerCapture) {
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }
       }
+
+      event.preventDefault();
+      event.stopPropagation();
 
       dragState.lastClientX = event.clientX;
 
@@ -484,11 +494,14 @@ export const ChartDisplay = ({
   const endDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     const dragState = dragStateRef.current;
     if (!dragState || dragState.pointerId !== event.pointerId) {
-      return;
+      return false;
     }
 
+    const wasActive = dragState.isActive;
     dragStateRef.current = null;
-    setIsDragging(false);
+    if (wasActive) {
+      setIsDragging(false);
+    }
 
     if (
       event.currentTarget.releasePointerCapture &&
@@ -497,6 +510,7 @@ export const ChartDisplay = ({
     ) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
+    return wasActive;
   }, []);
 
   const handlePointerUp = useCallback(
@@ -504,16 +518,22 @@ export const ChartDisplay = ({
       if (!dragStateRef.current) {
         return;
       }
-      event.preventDefault();
-      event.stopPropagation();
-      endDrag(event);
+      const wasActive = endDrag(event);
+      if (wasActive) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
     },
     [endDrag]
   );
 
   const handlePointerLeave = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
-      endDrag(event);
+      const wasActive = endDrag(event);
+      if (wasActive) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
       unlockBodyScroll();
     },
     [endDrag, unlockBodyScroll]
