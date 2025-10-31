@@ -22,6 +22,7 @@ import type {
 } from './types/plot';
 import { getNextColor, resetColorCycle } from './utils/colors';
 import { createPointId, parseDataFile } from './utils/dataImport';
+import { mergeChartData } from './utils/mergeChartData';
 
 const DEFAULT_DOMAIN: DomainSettings = {
   minX: -10,
@@ -95,13 +96,18 @@ function App() {
 
   const functionPlot = useFunctionPlot(functions, domain, chartOptions);
   const datasetPlot = useDatasetPlot(datasets, chartOptions);
-  const activePlot = mode === 'function' ? functionPlot : datasetPlot;
-  const { chartData, stats } = activePlot;
-  const baseWarnings = activePlot.warnings;
+  const combinedChart = useMemo(
+    () => mergeChartData(functionPlot.chartData, datasetPlot.chartData),
+    [functionPlot.chartData, datasetPlot.chartData]
+  );
 
   const warnings = useMemo(() => {
-    return importError ? [...baseWarnings, importError] : baseWarnings;
-  }, [baseWarnings, importError]);
+    const collected = new Set<string>([...functionPlot.warnings, ...datasetPlot.warnings]);
+    if (importError) {
+      collected.add(importError);
+    }
+    return Array.from(collected);
+  }, [functionPlot.warnings, datasetPlot.warnings, importError]);
 
   const handleModeChange = useCallback((nextMode: PlotMode) => {
     setMode(nextMode);
@@ -121,13 +127,13 @@ function App() {
   const handleFunctionRemove = useCallback(
     (id: string) => {
       setFunctions((prev) => {
-        if (prev.length === 1) {
+        if (prev.length === 0) {
           return prev;
         }
 
         const updated = prev.filter((fn) => fn.id !== id);
         if (!updated.length) {
-          return prev;
+          return updated;
         }
 
         if (!updated.some((fn) => fn.id === activeFunctionId)) {
@@ -184,13 +190,13 @@ function App() {
   const handleSeriesRemove = useCallback(
     (id: string) => {
       setDatasets((prev) => {
-        if (prev.length === 1) {
+        if (prev.length === 0) {
           return prev;
         }
 
         const updated = prev.filter((series) => series.id !== id);
         if (!updated.length) {
-          return prev;
+          return updated;
         }
 
         if (!updated.some((series) => series.id === activeSeriesId)) {
@@ -318,20 +324,20 @@ function App() {
   }, []);
 
   const handleDownloadCsv = useCallback(() => {
-    const labels = chartData.labels ?? [];
+    const labels = (combinedChart.labels ?? []) as Array<number | string>;
     if (!labels.length) {
       return;
     }
 
     const headers = [
       'x',
-      ...chartData.datasets.map((dataset) => dataset.label ?? 'Series'),
+      ...combinedChart.datasets.map((dataset) => dataset.label ?? 'Series'),
     ];
     const rows = [headers.join(',')];
 
     labels.forEach((label, rowIndex) => {
       const row = [String(label)];
-      chartData.datasets.forEach((dataset) => {
+      combinedChart.datasets.forEach((dataset) => {
         const dataArray = Array.isArray(dataset.data)
           ? (dataset.data as Array<number | null>)
           : [];
@@ -354,7 +360,7 @@ function App() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(href);
-  }, [chartData, mode]);
+  }, [combinedChart, mode]);
 
   const expressions = useMemo(
     () => functions.map((fn) => ({ id: fn.id, expression: fn.expression })),
@@ -363,59 +369,23 @@ function App() {
 
   return (
     <div className="min-h-screen pb-16">
-      <div className="mx-auto flex max-w-7xl flex-col gap-10 px-6 py-12">
-        <header className="space-y-6 text-center lg:text-left">
-          <div className="flex flex-col gap-3">
-            <span className="mx-auto inline-flex items-center justify-center rounded-full bg-blue-100 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-blue-700 lg:mx-0">
-              Graph Studio
-            </span>
-            <h1 className="text-3xl font-semibold text-slate-900 sm:text-4xl lg:text-5xl">
-              Design-grade plotting for analytic functions and custom datasets
+      <div className="mx-auto flex max-w-7xl flex-col gap-8 px-6 py-10">
+        <header className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-semibold text-slate-900 sm:text-3xl">
+              Function & dataset grapher
             </h1>
-            <p className="mx-auto max-w-3xl text-sm text-slate-600 sm:text-base lg:mx-0">
-              Visualise formulas with high fidelity, configure chart interactions, or import
-              measurement data from CSV and Excel files — all within a polished creator
-              experience.
+            <p className="text-sm text-slate-600">
+              Plot analytic formulas alongside imported data on a single interactive chart.
             </p>
           </div>
           <ModeToggle mode={mode} onModeChange={handleModeChange} />
         </header>
 
-        <div className="grid gap-8 lg:grid-cols-[360px,1fr]">
-          <aside className="space-y-6">
-            {mode === 'function' ? (
-              <FunctionControlPanel
-                functions={functions}
-                activeFunctionId={activeFunctionId}
-                onActiveFunctionChange={setActiveFunctionId}
-                onFunctionChange={handleFunctionChange}
-                onFunctionRemove={handleFunctionRemove}
-                onAddFunction={handleAddFunction}
-                domain={domain}
-                onDomainChange={handleDomainChange}
-                options={chartOptions}
-                onOptionsChange={handleOptionsChange}
-              />
-            ) : (
-              <DatasetControlPanel
-                datasets={datasets}
-                activeSeriesId={activeSeriesId}
-                onActiveSeriesChange={setActiveSeriesId}
-                onSeriesChange={handleSeriesChange}
-                onSeriesRemove={handleSeriesRemove}
-                onAddSeries={handleAddSeries}
-                onPointChange={handlePointChange}
-                onRemovePoint={handleRemovePoint}
-                onAddPoint={handleAddPoint}
-                onImportPoints={handleImportPoints}
-                onClearPoints={handleClearPoints}
-              />
-            )}
-          </aside>
-
-          <main className="flex flex-col gap-6">
+        <div className="grid gap-8 xl:grid-cols-[2fr,1fr]">
+          <main className="space-y-6">
             <ChartDisplay
-              chartData={chartData}
+              chartData={combinedChart}
               options={chartOptions}
               onDownloadCsv={handleDownloadCsv}
             />
@@ -429,14 +399,41 @@ function App() {
             <WarningsList warnings={warnings} />
 
             <div className="grid gap-5 lg:grid-cols-2">
-              {mode === 'function' ? (
-                <FunctionSummary stats={stats} expressions={expressions} />
-              ) : (
-                <DatasetSummary stats={stats} />
-              )}
-              <InstructionsCard mode={mode} />
+              <FunctionSummary stats={functionPlot.stats} expressions={expressions} />
+              <DatasetSummary stats={datasetPlot.stats} />
             </div>
           </main>
+
+          <aside className="space-y-6">
+            <FunctionControlPanel
+              functions={functions}
+              activeFunctionId={activeFunctionId}
+              onActiveFunctionChange={setActiveFunctionId}
+              onFunctionChange={handleFunctionChange}
+              onFunctionRemove={handleFunctionRemove}
+              onAddFunction={handleAddFunction}
+              domain={domain}
+              onDomainChange={handleDomainChange}
+              options={chartOptions}
+              onOptionsChange={handleOptionsChange}
+            />
+
+            <DatasetControlPanel
+              datasets={datasets}
+              activeSeriesId={activeSeriesId}
+              onActiveSeriesChange={setActiveSeriesId}
+              onSeriesChange={handleSeriesChange}
+              onSeriesRemove={handleSeriesRemove}
+              onAddSeries={handleAddSeries}
+              onPointChange={handlePointChange}
+              onRemovePoint={handleRemovePoint}
+              onAddPoint={handleAddPoint}
+              onImportPoints={handleImportPoints}
+              onClearPoints={handleClearPoints}
+            />
+
+            <InstructionsCard mode={mode} />
+          </aside>
         </div>
       </div>
     </div>
