@@ -231,8 +231,8 @@ export const ChartDisplay = ({
         pointBorderColor: '#c2410c',
         pointRadius: 5,
         pointHoverRadius: 7,
-        pointBorderWidth: 2,
-        pointHoverBorderWidth: 2,
+        pointBorderWidth: 3,
+        pointHoverBorderWidth: 6,
         showLine: false,
         order: Number.MAX_SAFE_INTEGER,
         parsing: {
