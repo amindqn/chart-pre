@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { WheelEvent as ReactWheelEvent } from 'react';
-import type { ChartData, ChartOptions as ChartJsOptions } from 'chart.js';
+import type {
+  ChartData,
+  ChartDataset,
+  ChartOptions as ChartJsOptions,
+} from 'chart.js';
 import { Line } from 'react-chartjs-2';
 
 import type { ChartDisplayOptions } from '../../types/plot';
@@ -11,6 +15,134 @@ const parseLabel = (value: number | string): number | null => {
   const parsed = Number.parseFloat(String(value));
   return Number.isFinite(parsed) ? parsed : null;
 };
+
+const isFiniteNumber = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isFinite(value);
+
+const EPSILON = 1e-6;
+
+interface IntersectionPoint {
+  x: number;
+  y: number;
+  seriesNames: [string, string];
+  datasetIndices: [number, number];
+}
+
+const computeIntersections = (
+  chartData: ChartData<'line'>
+): IntersectionPoint[] => {
+  const labels = (chartData.labels ?? []) as Array<number | string>;
+  if (!labels.length) {
+    return [];
+  }
+
+  const numericLabels = labels.map((label) => parseLabel(label));
+  const intersections = new Map<string, IntersectionPoint>();
+
+  for (let i = 0; i < chartData.datasets.length; i += 1) {
+    const datasetA = chartData.datasets[i];
+    if (datasetA.hidden || !Array.isArray(datasetA.data)) {
+      continue;
+    }
+    const dataA = datasetA.data as Array<number | null>;
+
+    for (let j = i + 1; j < chartData.datasets.length; j += 1) {
+      const datasetB = chartData.datasets[j];
+      if (datasetB.hidden || !Array.isArray(datasetB.data)) {
+        continue;
+      }
+      const dataB = datasetB.data as Array<number | null>;
+
+      for (let index = 0; index < numericLabels.length - 1; index += 1) {
+        const x0 = numericLabels[index];
+        const x1 = numericLabels[index + 1];
+
+        if (!isFiniteNumber(x0) || !isFiniteNumber(x1)) {
+          continue;
+        }
+
+        const y0A = dataA[index];
+        const y0B = dataB[index];
+        const y1A = dataA[index + 1];
+        const y1B = dataB[index + 1];
+
+        if (
+          !isFiniteNumber(y0A) ||
+          !isFiniteNumber(y0B) ||
+          !isFiniteNumber(y1A) ||
+          !isFiniteNumber(y1B)
+        ) {
+          continue;
+        }
+
+        const diff0 = y0A - y0B;
+        const diff1 = y1A - y1B;
+        const labelA = datasetA.label ?? `Series ${i + 1}`;
+        const labelB = datasetB.label ?? `Series ${j + 1}`;
+        const baseKey = `${i}-${j}`;
+
+        if (Math.abs(diff0) <= EPSILON) {
+          const key = `${x0.toFixed(6)}|${y0A.toFixed(6)}|${baseKey}`;
+          if (!intersections.has(key)) {
+            intersections.set(key, {
+              x: x0,
+              y: y0A,
+              seriesNames: [labelA, labelB],
+              datasetIndices: [i, j],
+            });
+          }
+        }
+
+        if (Math.abs(diff1) <= EPSILON) {
+          const key = `${x1.toFixed(6)}|${y1A.toFixed(6)}|${baseKey}`;
+          if (!intersections.has(key)) {
+            intersections.set(key, {
+              x: x1,
+              y: y1A,
+              seriesNames: [labelA, labelB],
+              datasetIndices: [i, j],
+            });
+          }
+        }
+
+        if ((diff0 < 0 && diff1 > 0) || (diff0 > 0 && diff1 < 0)) {
+          const denominator = diff0 - diff1;
+          if (!Number.isFinite(denominator) || Math.abs(denominator) < EPSILON) {
+            continue;
+          }
+          const t = diff0 / denominator;
+          if (!Number.isFinite(t) || t < 0 || t > 1) {
+            continue;
+          }
+          const x = x0 + t * (x1 - x0);
+          const y = y0A + t * (y1A - y0A);
+          if (!isFiniteNumber(x) || !isFiniteNumber(y)) {
+            continue;
+          }
+          const key = `${x.toFixed(6)}|${y.toFixed(6)}|${baseKey}`;
+          if (!intersections.has(key)) {
+            intersections.set(key, {
+              x,
+              y,
+              seriesNames: [labelA, labelB],
+              datasetIndices: [i, j],
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return Array.from(intersections.values());
+};
+
+const formatCoordinate = (value: number, digits = 4) =>
+  Number.isFinite(value) ? value.toFixed(digits) : `${value}`;
+
+const getCoordinateString = (value: unknown) =>
+  typeof value === 'number' && Number.isFinite(value)
+    ? formatCoordinate(value)
+    : '';
 
 interface ChartViewport {
   xMin: number;
@@ -44,13 +176,16 @@ export const ChartDisplay = ({
   onResetView,
   onPanByOffset,
 }: ChartDisplayProps) => {
+  const intersectionPoints = useMemo(
+    () => computeIntersections(chartData),
+    [chartData]
+  );
+
   const renderedChartData = useMemo<ChartData<'line'>>(() => {
     const labels = (chartData.labels ?? []) as Array<number | string>;
     const numericLabels = labels.map((label) => parseLabel(label));
 
-    return {
-      ...chartData,
-      datasets: chartData.datasets.map((dataset) => {
+    const lineDatasets = chartData.datasets.map((dataset) => {
         if (!Array.isArray(dataset.data)) {
           return dataset;
         }
@@ -79,9 +214,40 @@ export const ChartDisplay = ({
           },
           data: points,
         };
-      }),
+      });
+
+    const datasetsWithIntersections: ChartDataset<'line'>[] = [...lineDatasets];
+
+    if (intersectionPoints.length > 0) {
+      const intersectionDataset = {
+        type: 'scatter' as const,
+        label: 'Intersections',
+        data: intersectionPoints.map((point) => ({
+          x: point.x,
+          y: point.y,
+          seriesNames: point.seriesNames,
+        })),
+        pointBackgroundColor: '#f97316',
+        pointBorderColor: '#c2410c',
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        showLine: false,
+        parsing: {
+          xAxisKey: 'x',
+          yAxisKey: 'y',
+        },
+      };
+
+      datasetsWithIntersections.push(
+        intersectionDataset as unknown as ChartDataset<'line'>
+      );
+    }
+
+    return {
+      ...chartData,
+      datasets: datasetsWithIntersections,
     };
-  }, [chartData]);
+  }, [chartData, intersectionPoints]);
 
   const chartOptions = useMemo<ChartJsOptions<'line'>>(
     () => ({
@@ -105,7 +271,35 @@ export const ChartDisplay = ({
           callbacks: {
             title: (context) => {
               const parsedX = context[0]?.parsed?.x;
-              return typeof parsedX === 'number' ? `x = ${parsedX}` : '';
+              return typeof parsedX === 'number'
+                ? `x = ${formatCoordinate(parsedX)}`
+                : '';
+            },
+            label: (context) => {
+              const datasetType = (context.dataset as { type?: string }).type;
+              if (datasetType === 'scatter') {
+                const raw = context.raw as {
+                  x?: number;
+                  y?: number;
+                  seriesNames?: [string, string];
+                };
+                const seriesLabel = Array.isArray(raw?.seriesNames)
+                  ? raw.seriesNames.join(' ∩ ')
+                  : context.dataset.label ?? 'Intersection';
+                const xValue =
+                  getCoordinateString(context.parsed?.x) ||
+                  getCoordinateString(raw?.x);
+                const yValue =
+                  getCoordinateString(context.parsed?.y) ||
+                  getCoordinateString(raw?.y);
+                return `${seriesLabel}: (${xValue}, ${yValue})`;
+              }
+              const datasetLabel = context.dataset.label ?? '';
+              const value =
+                typeof context.parsed?.y === 'number'
+                  ? formatCoordinate(context.parsed.y)
+                  : context.formattedValue;
+              return datasetLabel ? `${datasetLabel}: ${value}` : `${value}`;
             },
           },
         },
