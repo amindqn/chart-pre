@@ -12,7 +12,7 @@ export const PRESET_FUNCTIONS: Array<{ label: string; expression: string }> = [
   { label: 'Natural Log (ln(x))', expression: 'ln(x)' },
   { label: 'Square Root (sqrt(x))', expression: 'sqrt(x)' },
   { label: 'Absolute Value (abs(x))', expression: 'abs(x)' },
-  { label: 'Gaussian (e^(-x^2))', expression: 'e^(-x^2)' },
+  { label: 'Gaussian (e^(-x^2))', expression: 'e^(-1*x^2)' },
   { label: 'Sinc (sin(x)/x)', expression: 'sin(x)/x' },
 ];
 
