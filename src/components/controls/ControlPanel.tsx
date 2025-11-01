@@ -48,7 +48,7 @@ export const FunctionControlPanel = ({
                     </button>
                 }
             >
-                <div className="space-y-3 grid gap-5 lg:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-2">
                     {functions.map((fn) => (
                         <FunctionCard
                             key={fn.id}
@@ -64,7 +64,7 @@ export const FunctionControlPanel = ({
                 </div>
             </Panel>
 
-            <div className="grid gap-5 lg:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2">
                 <Panel title="Domain & sampling">
                     <DomainControls
                         domain={domain}

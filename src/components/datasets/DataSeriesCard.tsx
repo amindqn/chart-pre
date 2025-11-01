@@ -56,8 +56,8 @@ export const DataSeriesCard = ({
         .join(' ')}
     >
       <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-1 flex-wrap items-center gap-3">
             <span
               className="h-3 w-3 rounded-full border border-slate-200"
               style={{ backgroundColor: series.color }}
@@ -69,7 +69,7 @@ export const DataSeriesCard = ({
                 onChange(series.id, { label: event.target.value })
               }
               onClick={(event) => event.stopPropagation()}
-              className="w-36 rounded-md border border-slate-300 px-2 py-1 text-sm font-medium focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              className="w-full min-w-[140px] flex-1 rounded-md border border-slate-300 px-2 py-1 text-sm font-medium focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:w-36"
               placeholder="Series label"
             />
             <label className="flex items-center gap-2 text-xs font-medium text-slate-500">
@@ -86,7 +86,7 @@ export const DataSeriesCard = ({
             </label>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
             <input
               type="color"
               value={series.color}
@@ -94,7 +94,7 @@ export const DataSeriesCard = ({
                 onChange(series.id, { color: event.target.value })
               }
               onClick={(event) => event.stopPropagation()}
-              className="h-9 w-12 cursor-pointer rounded-md border border-slate-200 bg-white"
+              className="h-10 w-16 cursor-pointer rounded-md border border-slate-200 bg-white sm:h-9 sm:w-12"
             />
             <button
               type="button"
@@ -102,7 +102,7 @@ export const DataSeriesCard = ({
                 event.stopPropagation();
                 triggerFileDialog();
               }}
-              className="rounded-md border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition hover:border-blue-400 hover:text-blue-600"
+              className="w-full rounded-md border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition hover:border-blue-400 hover:text-blue-600 sm:w-auto"
             >
               Import file
             </button>
@@ -125,7 +125,7 @@ export const DataSeriesCard = ({
                 event.stopPropagation();
                 onClearPoints(series.id);
               }}
-              className="rounded-md border border-transparent px-3 py-2 text-xs font-medium text-slate-500 hover:border-slate-300 hover:text-slate-700"
+              className="w-full rounded-md border border-transparent px-3 py-2 text-xs font-medium text-slate-500 hover:border-slate-300 hover:text-slate-700 sm:w-auto"
             >
               Clear
             </button>
@@ -138,7 +138,7 @@ export const DataSeriesCard = ({
                 }
               }}
               disabled={disableRemove}
-              className="rounded-md border border-red-200 px-3 py-2 text-xs font-semibold text-red-500 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full rounded-md border border-red-200 px-3 py-2 text-xs font-semibold text-red-500 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
               Remove
             </button>

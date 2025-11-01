@@ -64,10 +64,10 @@ export const useChartViewport = (chartData: ChartData<'line'>) => {
   useEffect(() => {
     if (bounds) {
       setViewport(bounds);
-    } else {
-      setViewport(null);
+      return;
     }
-  }, [bounds?.xMin, bounds?.xMax, bounds?.yMin, bounds?.yMax]);
+    setViewport(null);
+  }, [bounds]);
 
   const zoomByFactor = useCallback(
     (factor: number, anchor?: number) => {

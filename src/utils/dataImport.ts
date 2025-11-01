@@ -1,8 +1,20 @@
 import type { DataPoint } from '../types/plot';
 
+interface XlsxWorkbook {
+  SheetNames: string[];
+  Sheets: Record<string, unknown>;
+}
+
+interface XlsxModule {
+  read: (data: ArrayBuffer, options: { type: 'array' }) => XlsxWorkbook;
+  utils: {
+    sheet_to_json: (sheet: unknown, options: { header: 1 }) => unknown[];
+  };
+}
+
 declare global {
   interface Window {
-    XLSX?: any;
+    XLSX?: XlsxModule;
   }
 }
 
@@ -62,7 +74,7 @@ const parseDelimitedText = (text: string): Array<Omit<DataPoint, 'id'>> => {
   return normalizePoints(rows);
 };
 
-const loadXlsxLibrary = async () => {
+const loadXlsxLibrary = async (): Promise<XlsxModule> => {
   if (window.XLSX) {
     return window.XLSX;
   }
@@ -113,4 +125,3 @@ export const parseDataFile = async (file: File): Promise<Array<Omit<DataPoint, '
 
 export const createPointId = () =>
   `point-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
-

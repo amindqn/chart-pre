@@ -8,7 +8,7 @@ interface ChartToolbarProps {
 }
 
 const buttonStyles =
-  'inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white/80 px-3 py-2 text-xs font-medium text-slate-600 shadow-sm transition hover:border-blue-400 hover:text-blue-600';
+  'flex w-full items-center gap-2 rounded-md border border-slate-200 bg-white/80 px-3 py-2 text-xs font-medium text-slate-600 shadow-sm transition hover:border-blue-400 hover:text-blue-600 sm:w-auto';
 
 export const ChartToolbar = ({
   onZoomIn,

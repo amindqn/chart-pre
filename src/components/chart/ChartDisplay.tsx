@@ -5,6 +5,7 @@ import { Line } from "react-chartjs-2";
 
 import type { ChartDisplayOptions } from "../../types/plot";
 import type { ThemeMode } from "../../hooks/useThemePreference";
+import { useMediaQuery } from "../../hooks/useMediaQuery";
 import { Panel } from "../common/Panel";
 import { ChartToolbar } from "./ChartToolbar";
 
@@ -168,6 +169,7 @@ export const ChartDisplay = ({
     onResetView,
     onPanByOffset,
 }: ChartDisplayProps) => {
+    const isMobile = useMediaQuery("(max-width: 640px)");
     const intersectionPoints = useMemo(() => computeIntersections(chartData), [chartData]);
 
     const palette = useMemo(
@@ -269,7 +271,7 @@ export const ChartDisplay = ({
     const chartOptions = useMemo<ChartJsOptions<"line">>(
         () => ({
             responsive: true,
-            maintainAspectRatio: options.maintainAspectRatio,
+            maintainAspectRatio: isMobile ? false : options.maintainAspectRatio,
             animation: false,
             interaction: {
                 intersect: false,
@@ -365,7 +367,7 @@ export const ChartDisplay = ({
                 },
             },
         }),
-        [options, palette, viewport]
+        [options, palette, viewport, isMobile]
     );
 
     const intersectionOverlayPlugin = useMemo<Plugin<"line"> | null>(() => {
@@ -443,10 +445,21 @@ export const ChartDisplay = ({
 
     const chartPlugins = useMemo<Plugin<"line">[]>(() => (intersectionOverlayPlugin ? [intersectionOverlayPlugin] : []), [intersectionOverlayPlugin]);
 
+    const lineChart = (
+        <Line
+            options={chartOptions}
+            data={renderedChartData}
+            plugins={chartPlugins}
+            className={isMobile ? "h-full w-full origin-center rotate-90" : "h-full w-full"}
+            style={{ width: "100%", height: "100%" }}
+        />
+    );
+
     const hasData = (chartData.labels ?? []).length > 0;
     const dragStateRef = useRef<{
         pointerId: number;
         lastClientX: number;
+        lastClientY: number;
         isActive: boolean;
     } | null>(null);
     const [isDragging, setIsDragging] = useState(false);
@@ -497,11 +510,13 @@ export const ChartDisplay = ({
             event.nativeEvent.preventDefault();
 
             const rect = event.currentTarget.getBoundingClientRect();
-            if (rect.width <= 0) {
+            const dimension = isMobile ? rect.height : rect.width;
+            if (dimension <= 0) {
                 return;
             }
 
-            const ratio = Math.min(Math.max((event.clientX - rect.left) / rect.width, 0), 1);
+            const offset = isMobile ? event.clientY - rect.top : event.clientX - rect.left;
+            const ratio = Math.min(Math.max(offset / dimension, 0), 1);
             const anchor = viewport.xMin + ratio * (viewport.xMax - viewport.xMin);
             const strength = 1 + Math.min(Math.abs(event.deltaY) / 500, 0.7);
             if (event.deltaY < 0) {
@@ -510,7 +525,7 @@ export const ChartDisplay = ({
                 onZoomOut(anchor, strength);
             }
         },
-        [hasData, viewport, onZoomIn, onZoomOut]
+        [hasData, viewport, onZoomIn, onZoomOut, isMobile]
     );
 
     const handlePointerEnter = useCallback(() => {
@@ -543,6 +558,7 @@ export const ChartDisplay = ({
             dragStateRef.current = {
                 pointerId: event.pointerId,
                 lastClientX: event.clientX,
+                lastClientY: event.clientY,
                 isActive: false,
             };
         },
@@ -560,12 +576,13 @@ export const ChartDisplay = ({
             }
 
             const rect = event.currentTarget.getBoundingClientRect();
-            if (rect.width <= 0) {
+            const dimension = isMobile ? rect.height : rect.width;
+            if (dimension <= 0) {
                 return;
             }
 
-            const deltaX = event.clientX - dragState.lastClientX;
-            const hasSignificantMovement = Math.abs(deltaX) >= 1;
+            const deltaPrimary = isMobile ? event.clientY - dragState.lastClientY : event.clientX - dragState.lastClientX;
+            const hasSignificantMovement = Math.abs(deltaPrimary) >= 1;
 
             if (!dragState.isActive) {
                 if (!hasSignificantMovement) {
@@ -582,17 +599,18 @@ export const ChartDisplay = ({
             event.stopPropagation();
 
             dragState.lastClientX = event.clientX;
+            dragState.lastClientY = event.clientY;
 
             const range = viewport.xMax - viewport.xMin;
             if (range <= 0) {
                 return;
             }
 
-            const ratio = deltaX / rect.width;
+            const ratio = deltaPrimary / dimension;
             const delta = -ratio * range;
             onPanByOffset(delta);
         },
-        [viewport, onPanByOffset]
+        [viewport, onPanByOffset, isMobile]
     );
 
     const endDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
@@ -648,10 +666,15 @@ export const ChartDisplay = ({
             ? "bg-gradient-to-br from-slate-900/80 via-slate-900/40 to-slate-800/80"
             : "bg-gradient-to-br from-slate-900/5 via-white to-blue-100";
 
+    const cursorClass = hasData && viewport ? (isDragging ? "cursor-grabbing" : "cursor-grab") : "cursor-default";
+
     const containerClasses = [
-        "relative h-[70vh] w-full overflow-hidden rounded-2xl p-4 touch-none transition-colors duration-300",
+        "relative w-full overflow-hidden rounded-2xl transition-colors duration-300",
         surfaceBackground,
-        hasData && viewport ? (isDragging ? "cursor-grabbing" : "cursor-grab") : "cursor-default",
+        cursorClass,
+        isMobile
+            ? "aspect-square min-h-[260px] p-2 touch-pan-y flex items-center justify-center"
+            : "h-[60vh] min-h-[320px] p-3 touch-none sm:h-[60vh] sm:min-h-[320px] sm:p-4 md:h-[68vh] md:min-h-[380px] lg:h-[70vh] lg:min-h-[420px]",
     ].join(" ");
 
     const emptyStateClasses =
@@ -664,7 +687,7 @@ export const ChartDisplay = ({
     return (
         <Panel
             title="Chart"
-            className="space-y-5"
+            className="space-y-4 sm:space-y-5"
         >
             <ChartToolbar
                 onZoomIn={onZoomIn}
@@ -686,13 +709,7 @@ export const ChartDisplay = ({
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
             >
-                {hasData ? (
-                    <Line
-                        options={chartOptions}
-                        data={renderedChartData}
-                        plugins={chartPlugins}
-                    />
-                ) : (
+                {hasData ? (isMobile ? <div className="h-full w-full">{lineChart}</div> : lineChart) : (
                     <div className={emptyStateClasses}>
                         <p className={emptyStateTextClass}>Configure a function or import data to see the graph.</p>
                     </div>

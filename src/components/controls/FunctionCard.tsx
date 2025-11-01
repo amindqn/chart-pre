@@ -58,8 +58,8 @@ export const FunctionCard = ({
         .filter(Boolean)
         .join(' ')}
     >
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-1 flex-wrap items-center gap-3 sm:flex-nowrap">
           <span
             className="inline-block h-3 w-3 rounded-full border border-slate-200"
             style={{ backgroundColor: fn.color }}
@@ -70,11 +70,11 @@ export const FunctionCard = ({
             value={fn.label}
             onChange={handleInputChange}
             onClick={(event) => event.stopPropagation()}
-            className="w-32 rounded-md border border-slate-300 px-2 py-1 text-sm font-medium focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            className="w-full min-w-[140px] flex-1 rounded-md border border-slate-300 px-2 py-1 text-sm font-medium focus:border-blue-500 focus:ring-2 focus:ring-blue-200 sm:w-32"
             placeholder="f(x)"
           />
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-1 text-sm text-slate-600">
             <input
               type="checkbox"
@@ -93,7 +93,7 @@ export const FunctionCard = ({
                 onRemove(fn.id);
               }
             }}
-            className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-500 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-500 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             disabled={disableRemove}
           >
             Remove
@@ -116,7 +116,7 @@ export const FunctionCard = ({
         />
       </div>
 
-      <div className="grid grid-cols-[auto,1fr] gap-3">
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,auto),1fr]">
         <div className="space-y-2">
           <label className="block text-xs font-medium text-slate-600">
             Series color

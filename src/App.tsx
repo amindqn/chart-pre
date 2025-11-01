@@ -8,7 +8,6 @@ import { DatasetSummary } from './components/info/DatasetSummary';
 import { FunctionSummary } from './components/info/FunctionSummary';
 import { InstructionsCard } from './components/info/InstructionsCard';
 import { WarningsList } from './components/info/WarningsList';
-//import { ModeToggle } from './components/layout/ModeToggle';
 import { ThemeToggle } from './components/layout/ThemeToggle';
 import { useChartComposition } from './hooks/useChartComposition';
 import { useChartViewport } from './hooks/useChartViewport';
@@ -17,7 +16,7 @@ import { useDatasetPlot } from './hooks/useDatasetPlot';
 import { useFunctionManager } from './hooks/useFunctionManager';
 import { useFunctionPlot } from './hooks/useFunctionPlot';
 import { useThemePreference } from './hooks/useThemePreference';
-import type { ChartDisplayOptions, DomainSettings, PlotMode } from './types/plot';
+import type { ChartDisplayOptions, DomainSettings } from './types/plot';
 
 const DEFAULT_DOMAIN: DomainSettings = {
   minX: -10,
@@ -36,7 +35,6 @@ const DEFAULT_CHART_OPTIONS: ChartDisplayOptions = {
 };
 
 function App() {
-  const [mode] = useState<PlotMode>('function');
   const { theme, toggleTheme } = useThemePreference();
   const functionManager = useFunctionManager();
   const datasetManager = useDatasetManager();
@@ -71,14 +69,6 @@ function App() {
       })),
     [functionManager.functions]
   );
-
-  /*const handleModeChange = useCallback(
-    (value: PlotMode) => {
-      setMode(value);
-      datasetManager.resetImportFeedback();
-    },
-    [datasetManager]
-  );*/
 
   const handleDomainChange = useCallback((patch: Partial<DomainSettings>) => {
     setDomain((prev) => ({ ...prev, ...patch }));
@@ -136,8 +126,8 @@ function App() {
 
   return (
     <div className="min-h-screen pb-16 transition-colors duration-300">
-      <div className="mx-auto flex max-w-7xl flex-col gap-8 px-6 py-10">
-        <header className="flex flex-wrap items-center justify-between gap-4">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 sm:py-10">
+        <header className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <h1 className="text-2xl font-semibold text-slate-900 sm:text-3xl">
               Function & dataset grapher
@@ -148,7 +138,6 @@ function App() {
           </div>
           <div className="flex items-center gap-3">
             <ThemeToggle theme={theme} onToggle={toggleTheme} />
-            {/* <ModeToggle mode={mode} onModeChange={handleModeChange} /> */}
           </div>
         </header>
 
@@ -168,7 +157,7 @@ function App() {
               onPanByOffset={viewportControls.panByOffset}
             />
 
-            {mode === 'dataset' && datasetManager.importFeedback && (
+            {datasetManager.importFeedback && (
               <div className="flex items-start justify-between gap-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
                 <span>{datasetManager.importFeedback}</span>
                 <button

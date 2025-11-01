@@ -30,8 +30,8 @@ export const DataPointsEditor = ({
 
   return (
     <div className="space-y-3">
-      <div className="overflow-hidden rounded-md border border-slate-200">
-        <table className="w-full table-fixed border-collapse text-left text-sm text-slate-600">
+      <div className="overflow-x-auto rounded-md border border-slate-200">
+        <table className="w-full min-w-[420px] table-fixed border-collapse text-left text-sm text-slate-600">
           <thead className="bg-slate-100 text-xs uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-3 py-3 font-semibold">#</th>
