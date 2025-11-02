@@ -207,6 +207,7 @@ function App() {
               onAddPoint={datasetManager.addPoint}
               onImportPoints={datasetManager.importFromFile}
               onClearPoints={datasetManager.clearPoints}
+              seriesStats={datasetPlot.stats.series}
             />
 
             <InstructionsCard />

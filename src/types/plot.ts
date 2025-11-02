@@ -37,6 +37,15 @@ export interface SeriesFitConfig {
   sampleCount: number;
 }
 
+export interface SeriesFitStats {
+  type: SeriesFitType;
+  coefficients: number[];
+  sampleCount: number;
+  equation: string;
+  rSquared: number | null;
+  rmse: number | null;
+}
+
 export interface DataSeries {
   id: string;
   label: string;
@@ -56,6 +65,7 @@ export interface SeriesStats {
   minX: number | null;
   maxX: number | null;
   areaUnderCurve: number | null;
+  fit?: SeriesFitStats;
 }
 
 export interface PlotStats {

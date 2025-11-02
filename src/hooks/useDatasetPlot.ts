@@ -53,6 +53,97 @@ const clampSampleCount = (value?: number): number => {
   return numeric;
 };
 
+const SMALL_COEFFICIENT_THRESHOLD = 1e-9;
+
+const formatCoefficient = (value: number): string => {
+  if (!Number.isFinite(value)) {
+    return 'NaN';
+  }
+  const abs = Math.abs(value);
+  if (abs >= 1000 || abs < 0.001) {
+    return value.toExponential(3);
+  }
+  return value.toFixed(4);
+};
+
+const buildPolynomialEquation = (coefficients: number[]): string => {
+  const terms: string[] = [];
+
+  coefficients.forEach((coefficient, index) => {
+    if (Math.abs(coefficient) <= SMALL_COEFFICIENT_THRESHOLD) {
+      return;
+    }
+
+    const magnitude = formatCoefficient(Math.abs(coefficient));
+    let term = '';
+
+    if (index === 0) {
+      term = magnitude;
+    } else {
+      term = `${magnitude}·x`;
+      if (index > 1) {
+        term += `^${index}`;
+      }
+    }
+
+    if (!terms.length) {
+      terms.push(coefficient < 0 ? `-${term}` : term);
+    } else {
+      terms.push(`${coefficient < 0 ? '-' : '+'} ${term}`);
+    }
+  });
+
+  const expression = terms.length ? terms.join(' ') : '0';
+  return `y = ${expression}`;
+};
+
+const computeFitMetrics = (
+  coefficients: number[],
+  points: Array<{ x: number; y: number }>
+) => {
+  const validPairs = points
+    .map(({ x, y }) => {
+      const predicted = evaluatePolynomial(coefficients, x);
+      if (!Number.isFinite(predicted)) {
+        return null;
+      }
+      return { actual: y, predicted };
+    })
+    .filter(
+      (entry): entry is { actual: number; predicted: number } =>
+        entry !== null
+    );
+
+  if (!validPairs.length) {
+    return {
+      rSquared: null,
+      rmse: null,
+    };
+  }
+
+  const meanY =
+    validPairs.reduce((sum, pair) => sum + pair.actual, 0) / validPairs.length;
+
+  let ssRes = 0;
+  let ssTot = 0;
+
+  validPairs.forEach(({ actual, predicted }) => {
+    const residual = actual - predicted;
+    ssRes += residual * residual;
+    const diffMean = actual - meanY;
+    ssTot += diffMean * diffMean;
+  });
+
+  const rSquared =
+    ssTot <= SMALL_COEFFICIENT_THRESHOLD ? null : 1 - ssRes / ssTot;
+  const rmse = Math.sqrt(ssRes / validPairs.length);
+
+  return {
+    rSquared: Number.isFinite(rSquared) ? rSquared : null,
+    rmse: Number.isFinite(rmse) ? rmse : null,
+  };
+};
+
 interface NormalizedSeriesEntry {
   meta: DataSeries;
   stats: SeriesStats;
@@ -62,6 +153,10 @@ interface NormalizedSeriesEntry {
     type: SeriesFitType;
     coefficients: number[];
     domain: { min: number; max: number };
+    sampleCount: number;
+    equation: string;
+    rSquared: number | null;
+    rmse: number | null;
   } | null;
 }
 
@@ -130,6 +225,7 @@ export const useDatasetPlot = (
         minX: sortedPoints.length ? Math.min(...sortedPoints.map((p) => p.x)) : null,
         maxX: sortedPoints.length ? Math.max(...sortedPoints.map((p) => p.x)) : null,
         areaUnderCurve: null,
+        fit: undefined,
       };
 
       if (sortedPoints.length < 2 && series.visible) {
@@ -165,6 +261,8 @@ export const useDatasetPlot = (
             const step = sampleCount > 1 ? range / (sampleCount - 1) : 0;
             try {
               const { coefficients } = polynomialRegression(uniquePoints, degree);
+              const equation = buildPolynomialEquation(coefficients);
+              const { rSquared, rmse } = computeFitMetrics(coefficients, uniquePoints);
               for (let index = 0; index < sampleCount; index += 1) {
                 const x =
                   index === sampleCount - 1
@@ -178,6 +276,10 @@ export const useDatasetPlot = (
                 type: series.fit.type,
                 coefficients,
                 domain: { min: domainMin, max: domainMax },
+                sampleCount,
+                equation,
+                rSquared,
+                rmse,
               };
             } catch (error) {
               const message =
@@ -289,6 +391,15 @@ export const useDatasetPlot = (
           hidden: !meta.visible,
           borderDash: [6, 4],
         });
+
+        stats.fit = {
+          type: fit.type,
+          coefficients: fit.coefficients,
+          sampleCount: fit.sampleCount,
+          equation: fit.equation,
+          rSquared: fit.rSquared,
+          rmse: fit.rmse,
+        };
       }
     });
 

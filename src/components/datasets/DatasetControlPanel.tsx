@@ -1,4 +1,6 @@
-import type { DataPoint, DataSeries } from '../../types/plot';
+import { useMemo } from 'react';
+
+import type { DataPoint, DataSeries, SeriesFitStats, SeriesStats } from '../../types/plot';
 import { Panel } from '../common/Panel';
 import { DataSeriesCard } from './DataSeriesCard';
 
@@ -14,6 +16,7 @@ interface DatasetControlPanelProps {
   onRemovePoint: (seriesId: string, pointId: string) => void;
   onImportPoints: (seriesId: string, file: File) => void;
   onClearPoints: (seriesId: string) => void;
+  seriesStats?: SeriesStats[];
 }
 
 const MAX_SERIES = 6;
@@ -30,8 +33,18 @@ export const DatasetControlPanel = ({
   onAddPoint,
   onImportPoints,
   onClearPoints,
+  seriesStats,
 }: DatasetControlPanelProps) => {
   const canAdd = datasets.length < MAX_SERIES;
+  const fitSummaryMap = useMemo(() => {
+    if (!seriesStats) {
+      return {} as Record<string, SeriesFitStats | undefined>;
+    }
+    return seriesStats.reduce((accumulator, entry) => {
+      accumulator[entry.id] = entry.fit;
+      return accumulator;
+    }, {} as Record<string, SeriesFitStats | undefined>);
+  }, [seriesStats]);
 
   return (
     <div className="space-y-4">
@@ -63,6 +76,7 @@ export const DatasetControlPanel = ({
               onRemovePoint={onRemovePoint}
               onImportPoints={onImportPoints}
               onClearPoints={onClearPoints}
+              fitSummary={fitSummaryMap[series.id]}
             />
           ))}
           {!canAdd && <p className="text-xs text-slate-500">You can plot up to {MAX_SERIES} series at the same time.</p>}

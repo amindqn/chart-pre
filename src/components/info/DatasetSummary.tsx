@@ -10,6 +10,13 @@ export const DatasetSummary = ({ stats }: DatasetSummaryProps) => {
     return null;
   }
 
+  const formatMetric = (value: number | null) =>
+    value === null
+      ? 'N/A'
+      : value.toLocaleString(undefined, {
+          maximumFractionDigits: 4,
+        });
+
   return (
     <Panel title="Series overview">
       <div className="space-y-3 text-sm text-slate-600">
@@ -55,6 +62,21 @@ export const DatasetSummary = ({ stats }: DatasetSummaryProps) => {
                   </span>
                 )}
               </div>
+
+              {series.fit && (
+                <div className="mt-2 space-y-1 rounded-md border border-slate-200 bg-white px-3 py-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Fit model
+                  </p>
+                  <p className="text-xs font-mono text-slate-700">{series.fit.equation}</p>
+                  <div className="flex flex-wrap gap-3 text-[11px] text-slate-500">
+                    <span>Type: {series.fit.type}</span>
+                    <span>Samples: {series.fit.sampleCount}</span>
+                    <span>R²: {formatMetric(series.fit.rSquared)}</span>
+                    <span>RMSE: {formatMetric(series.fit.rmse)}</span>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>

@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 
 import { DEFAULT_FIT_SAMPLE_COUNT, DEFAULT_FIT_TYPE, FIT_SAMPLE_COUNT_OPTIONS } from '../../constants/fit';
-import type { DataPoint, DataSeries, SeriesFitConfig, SeriesFitType } from '../../types/plot';
+import type { DataPoint, DataSeries, SeriesFitConfig, SeriesFitStats, SeriesFitType } from '../../types/plot';
 import { DataPointsEditor } from './DataPointsEditor';
 
 const FIT_TYPE_OPTIONS: Array<{ value: SeriesFitType; label: string }> = [
@@ -22,6 +22,7 @@ interface DataSeriesCardProps {
   onRemovePoint: (seriesId: string, pointId: string) => void;
   onImportPoints: (seriesId: string, file: File) => void;
   onClearPoints: (seriesId: string) => void;
+  fitSummary?: SeriesFitStats;
 }
 
 export const DataSeriesCard = ({
@@ -36,6 +37,7 @@ export const DataSeriesCard = ({
   onRemovePoint,
   onImportPoints,
   onClearPoints,
+  fitSummary,
 }: DataSeriesCardProps) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -61,6 +63,15 @@ export const DataSeriesCard = ({
   };
 
   const fitEnabled = Boolean(series.fit);
+  const formatMetric = (value: number | null) =>
+    value === null
+      ? 'N/A'
+      : value.toLocaleString(undefined, {
+          maximumFractionDigits: 4,
+        });
+
+  const formatCoefficient = (value: number) =>
+    value.toLocaleString(undefined, { maximumFractionDigits: 6 });
 
   return (
     <div
@@ -233,6 +244,26 @@ export const DataSeriesCard = ({
               <p className="sm:col-span-3 text-xs text-slate-500">
                 Uses least squares regression to draw a smooth curve over your data. Higher samples increase smoothness.
               </p>
+
+              {fitSummary && (
+                <div className="sm:col-span-3 space-y-2 rounded-md border border-slate-200 bg-white px-3 py-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Current fit
+                  </p>
+                  <p className="text-xs font-mono text-slate-700">{fitSummary.equation}</p>
+                  <div className="flex flex-wrap gap-3 text-[11px] text-slate-500">
+                    <span>Type: {fitSummary.type}</span>
+                    <span>Samples: {fitSummary.sampleCount}</span>
+                    <span>R²: {formatMetric(fitSummary.rSquared)}</span>
+                    <span>RMSE: {formatMetric(fitSummary.rmse)}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-[11px] font-mono text-slate-500">
+                    {fitSummary.coefficients.map((coefficient, index) => (
+                      <span key={index}>a{index}={formatCoefficient(coefficient)}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
