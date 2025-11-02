@@ -1,14 +1,21 @@
 import { useRef } from 'react';
 
-import { DEFAULT_FIT_SAMPLE_COUNT, DEFAULT_FIT_TYPE, FIT_SAMPLE_COUNT_OPTIONS } from '../../constants/fit';
-import type { DataPoint, DataSeries, SeriesFitConfig, SeriesFitStats, SeriesFitType } from '../../types/plot';
+import {
+  DEFAULT_FIT_SAMPLE_COUNT,
+  DEFAULT_FIT_TYPE,
+  FIT_SAMPLE_COUNT_OPTIONS,
+  FIT_TYPE_LABELS,
+  FIT_TYPE_ORDER,
+  POLYNOMIAL_FIT_LABELS,
+} from '../../constants/fit';
+import type {
+  DataPoint,
+  DataSeries,
+  SeriesFitConfig,
+  SeriesFitStats,
+  SeriesFitType,
+} from '../../types/plot';
 import { DataPointsEditor } from './DataPointsEditor';
-
-const FIT_TYPE_OPTIONS: Array<{ value: SeriesFitType; label: string }> = [
-  { value: 'linear', label: 'Linear' },
-  { value: 'quadratic', label: 'Quadratic' },
-  { value: 'cubic', label: 'Cubic' },
-];
 
 interface DataSeriesCardProps {
   series: DataSeries;
@@ -214,9 +221,9 @@ export const DataSeriesCard = ({
                   }
                   className="rounded-md border border-slate-300 px-2 py-1 text-sm text-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 >
-                  {FIT_TYPE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
+                  {FIT_TYPE_ORDER.map((fitType) => (
+                    <option key={fitType} value={fitType}>
+                      {FIT_TYPE_LABELS[fitType]}
                     </option>
                   ))}
                 </select>
@@ -252,7 +259,8 @@ export const DataSeriesCard = ({
                   </p>
                   <p className="text-xs font-mono text-slate-700">{fitSummary.equation}</p>
                   <div className="flex flex-wrap gap-3 text-[11px] text-slate-500">
-                    <span>Type: {fitSummary.type}</span>
+                    <span>Mode: {FIT_TYPE_LABELS[fitSummary.selectedType]}</span>
+                    <span>Resolved: {POLYNOMIAL_FIT_LABELS[fitSummary.resolvedType]}</span>
                     <span>Samples: {fitSummary.sampleCount}</span>
                     <span>R²: {formatMetric(fitSummary.rSquared)}</span>
                     <span>RMSE: {formatMetric(fitSummary.rmse)}</span>

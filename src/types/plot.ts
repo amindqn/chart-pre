@@ -30,7 +30,8 @@ export interface DataPoint {
   y: number;
 }
 
-export type SeriesFitType = 'linear' | 'quadratic' | 'cubic';
+export type SeriesFitType = 'linear' | 'quadratic' | 'cubic' | 'quartic' | 'quintic' | 'auto';
+export type PolynomialFitType = Exclude<SeriesFitType, 'auto'>;
 
 export interface SeriesFitConfig {
   type: SeriesFitType;
@@ -38,7 +39,8 @@ export interface SeriesFitConfig {
 }
 
 export interface SeriesFitStats {
-  type: SeriesFitType;
+  selectedType: SeriesFitType;
+  resolvedType: PolynomialFitType;
   coefficients: number[];
   sampleCount: number;
   equation: string;

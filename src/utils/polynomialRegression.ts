@@ -1,4 +1,4 @@
-import type { SeriesFitType } from '../types/plot';
+import type { PolynomialFitType } from '../types/plot';
 
 export interface PolynomialFitResult {
   coefficients: number[];
@@ -7,13 +7,15 @@ export interface PolynomialFitResult {
 
 const EPSILON = 1e-12;
 
-const degreeByFitType: Record<SeriesFitType, number> = {
+const degreeByFitType: Record<PolynomialFitType, number> = {
   linear: 1,
   quadratic: 2,
   cubic: 3,
+  quartic: 4,
+  quintic: 5,
 };
 
-export const getPolynomialDegree = (fitType: SeriesFitType): number =>
+export const getPolynomialDegree = (fitType: PolynomialFitType): number =>
   degreeByFitType[fitType];
 
 export const evaluatePolynomial = (coefficients: number[], x: number): number => {

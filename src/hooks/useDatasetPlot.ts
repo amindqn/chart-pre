@@ -5,10 +5,16 @@ import type {
   ChartDisplayOptions,
   DataSeries,
   PlotStats,
+  PolynomialFitType,
   SeriesFitType,
   SeriesStats,
 } from '../types/plot';
-import { DEFAULT_FIT_SAMPLE_COUNT } from '../constants/fit';
+import {
+  DEFAULT_FIT_SAMPLE_COUNT,
+  FIT_TYPE_LABELS,
+  POLYNOMIAL_FIT_LABELS,
+  POLYNOMIAL_FIT_TYPES,
+} from '../constants/fit';
 import { calculateAreaUnderCurve } from '../utils/calculateAreaUnderCurve';
 import {
   evaluatePolynomial,
@@ -31,12 +37,6 @@ const hexToRgba = (hexColor: string, alpha: number) => {
   const g = (bigint >> 8) & 255;
   const b = bigint & 255;
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-};
-
-const FIT_LABELS: Record<SeriesFitType, string> = {
-  linear: 'Linear fit',
-  quadratic: 'Quadratic fit',
-  cubic: 'Cubic fit',
 };
 
 const clampSampleCount = (value?: number): number => {
@@ -144,13 +144,136 @@ const computeFitMetrics = (
   };
 };
 
+interface FitAttemptSuccess {
+  ok: true;
+  data: {
+    type: PolynomialFitType;
+    coefficients: number[];
+    domain: { min: number; max: number };
+    sampleCount: number;
+    equation: string;
+    rSquared: number | null;
+    rmse: number | null;
+    sampleXs: number[];
+  };
+}
+
+interface FitAttemptFailure {
+  ok: false;
+  reason: string;
+}
+
+type FitAttempt = FitAttemptSuccess | FitAttemptFailure;
+
+const attemptPolynomialFit = (
+  fitType: PolynomialFitType,
+  points: Array<{ x: number; y: number }>,
+  sampleCount: number,
+  seriesLabel: string
+): FitAttempt => {
+  const degree = getPolynomialDegree(fitType);
+  const requiredPoints = degree + 1;
+  if (points.length < requiredPoints) {
+    return {
+      ok: false,
+      reason: `Series "${seriesLabel}" needs at least ${requiredPoints} unique points for a ${POLYNOMIAL_FIT_LABELS[fitType].toLowerCase()}.`,
+    };
+  }
+
+  const domainMin = points[0].x;
+  const domainMax = points[points.length - 1].x;
+  if (
+    !Number.isFinite(domainMin) ||
+    !Number.isFinite(domainMax) ||
+    Math.abs(domainMax - domainMin) <= 1e-9
+  ) {
+    return {
+      ok: false,
+      reason: `Series "${seriesLabel}" requires at least two distinct x values to compute a fit.`,
+    };
+  }
+
+  try {
+    const { coefficients } = polynomialRegression(points, degree);
+    const equation = buildPolynomialEquation(coefficients);
+    const { rSquared, rmse } = computeFitMetrics(coefficients, points);
+    const range = domainMax - domainMin;
+    const step = sampleCount > 1 ? range / (sampleCount - 1) : 0;
+    const sampleXs: number[] = [];
+
+    for (let index = 0; index < sampleCount; index += 1) {
+      const x =
+        index === sampleCount - 1
+          ? domainMax
+          : domainMin + step * index;
+      if (Number.isFinite(x)) {
+        sampleXs.push(x);
+      }
+    }
+
+    return {
+      ok: true,
+      data: {
+        type: fitType,
+        coefficients,
+        domain: { min: domainMin, max: domainMax },
+        sampleCount,
+        equation,
+        rSquared,
+        rmse,
+        sampleXs,
+      },
+    };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Unable to complete regression.';
+    return {
+      ok: false,
+      reason: `Could not compute ${POLYNOMIAL_FIT_LABELS[fitType].toLowerCase()} for "${seriesLabel}": ${message}`,
+    };
+  }
+};
+
+const isBetterFit = (candidate: FitAttemptSuccess, best: FitAttemptSuccess) => {
+  const candidateRSquared = candidate.data.rSquared ?? Number.NEGATIVE_INFINITY;
+  const bestRSquared = best.data.rSquared ?? Number.NEGATIVE_INFINITY;
+
+  if (Math.abs(candidateRSquared - bestRSquared) > 1e-9) {
+    return candidateRSquared > bestRSquared;
+  }
+
+  const candidateRmse = candidate.data.rmse ?? Number.POSITIVE_INFINITY;
+  const bestRmse = best.data.rmse ?? Number.POSITIVE_INFINITY;
+
+  if (Math.abs(candidateRmse - bestRmse) > 1e-9) {
+    return candidateRmse < bestRmse;
+  }
+
+  const candidateDegree = getPolynomialDegree(candidate.data.type);
+  const bestDegree = getPolynomialDegree(best.data.type);
+
+  return candidateDegree < bestDegree;
+};
+
+const getLegendLabel = (
+  selectedType: SeriesFitType,
+  resolvedType: PolynomialFitType
+) => {
+  const resolvedLabel = POLYNOMIAL_FIT_LABELS[resolvedType];
+  if (selectedType === 'auto') {
+    return `${FIT_TYPE_LABELS.auto}: ${resolvedLabel}`;
+  }
+  return resolvedLabel;
+};
+
 interface NormalizedSeriesEntry {
   meta: DataSeries;
   stats: SeriesStats;
   map: Map<number, number>;
   points: Array<{ x: number; y: number }>;
   fit: {
-    type: SeriesFitType;
+    selectedType: SeriesFitType;
+    resolvedType: PolynomialFitType;
     coefficients: number[];
     domain: { min: number; max: number };
     sampleCount: number;
@@ -236,64 +359,72 @@ export const useDatasetPlot = (
 
       let fit: NormalizedSeriesEntry['fit'] = null;
 
-      if (series.fit && uniquePoints.length) {
-        const degree = getPolynomialDegree(series.fit.type);
-        if (uniquePoints.length <= degree) {
+      if (series.fit) {
+        if (!uniquePoints.length) {
           warnings.push(
-            `Series "${series.label}" needs at least ${degree + 1} unique points for a ${
-              FIT_LABELS[series.fit.type].toLowerCase()
-            }.`
+            `At least two numeric data points are required to compute a fit for "${series.label}".`
           );
         } else {
-          const domainMin = uniquePoints[0].x;
-          const domainMax = uniquePoints[uniquePoints.length - 1].x;
-          if (
-            !Number.isFinite(domainMin) ||
-            !Number.isFinite(domainMax) ||
-            Math.abs(domainMax - domainMin) <= 1e-9
-          ) {
-            warnings.push(
-              `Series "${series.label}" requires at least two distinct x values to compute a fit.`
+          const sampleCount = clampSampleCount(series.fit.sampleCount ?? DEFAULT_FIT_SAMPLE_COUNT);
+          if (series.fit.type === 'auto') {
+            const attempts: FitAttempt[] = POLYNOMIAL_FIT_TYPES.map((fitType) =>
+              attemptPolynomialFit(fitType, uniquePoints, sampleCount, series.label)
             );
-          } else {
-            const sampleCount = clampSampleCount(series.fit.sampleCount ?? DEFAULT_FIT_SAMPLE_COUNT);
-            const range = domainMax - domainMin;
-            const step = sampleCount > 1 ? range / (sampleCount - 1) : 0;
-            try {
-              const { coefficients } = polynomialRegression(uniquePoints, degree);
-              const equation = buildPolynomialEquation(coefficients);
-              const { rSquared, rmse } = computeFitMetrics(coefficients, uniquePoints);
-              for (let index = 0; index < sampleCount; index += 1) {
-                const x =
-                  index === sampleCount - 1
-                    ? domainMax
-                    : domainMin + step * index;
-                if (Number.isFinite(x)) {
-                  chartXValueSet.add(x);
+            const successes = attempts.filter(
+              (attempt): attempt is FitAttemptSuccess => attempt.ok
+            );
+            if (successes.length) {
+              let best = successes[0];
+              for (let index = 1; index < successes.length; index += 1) {
+                const candidate = successes[index];
+                if (isBetterFit(candidate, best)) {
+                  best = candidate;
                 }
               }
+              best.data.sampleXs.forEach((x) => chartXValueSet.add(x));
               fit = {
-                type: series.fit.type,
-                coefficients,
-                domain: { min: domainMin, max: domainMax },
-                sampleCount,
-                equation,
-                rSquared,
-                rmse,
+                selectedType: 'auto',
+                resolvedType: best.data.type,
+                coefficients: best.data.coefficients,
+                domain: best.data.domain,
+                sampleCount: best.data.sampleCount,
+                equation: best.data.equation,
+                rSquared: best.data.rSquared,
+                rmse: best.data.rmse,
               };
-            } catch (error) {
-              const message =
-                error instanceof Error ? error.message : 'Unable to complete regression.';
+            } else {
+              const failureReasons = attempts
+                .filter((attempt): attempt is FitAttemptFailure => !attempt.ok)
+                .map((failure) => failure.reason);
               warnings.push(
-                `Could not compute ${FIT_LABELS[series.fit.type].toLowerCase()} for "${series.label}": ${message}`
+                failureReasons[0] ??
+                  `Unable to compute an auto fit for "${series.label}".`
               );
+            }
+          } else {
+            const attempt = attemptPolynomialFit(
+              series.fit.type,
+              uniquePoints,
+              sampleCount,
+              series.label
+            );
+            if (attempt.ok) {
+              attempt.data.sampleXs.forEach((x) => chartXValueSet.add(x));
+              fit = {
+                selectedType: series.fit.type,
+                resolvedType: attempt.data.type,
+                coefficients: attempt.data.coefficients,
+                domain: attempt.data.domain,
+                sampleCount: attempt.data.sampleCount,
+                equation: attempt.data.equation,
+                rSquared: attempt.data.rSquared,
+                rmse: attempt.data.rmse,
+              };
+            } else {
+              warnings.push(attempt.reason);
             }
           }
         }
-      } else if (series.fit && !uniquePoints.length) {
-        warnings.push(
-          `At least two numeric data points are required to compute a fit for "${series.label}".`
-        );
       }
 
       return {
@@ -377,8 +508,9 @@ export const useDatasetPlot = (
           return Number.isFinite(value) ? value : null;
         });
 
+        const legendLabel = getLegendLabel(fit.selectedType, fit.resolvedType);
         chartDatasets.push({
-          label: `${meta.label} (${FIT_LABELS[fit.type]})`,
+          label: `${meta.label} (${legendLabel})`,
           data: fitData,
           borderColor: baseColor,
           backgroundColor: hexToRgba(baseColor, 0.1),
@@ -393,7 +525,8 @@ export const useDatasetPlot = (
         });
 
         stats.fit = {
-          type: fit.type,
+          selectedType: fit.selectedType,
+          resolvedType: fit.resolvedType,
           coefficients: fit.coefficients,
           sampleCount: fit.sampleCount,
           equation: fit.equation,

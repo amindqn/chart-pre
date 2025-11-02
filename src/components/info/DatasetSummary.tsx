@@ -1,3 +1,4 @@
+import { FIT_TYPE_LABELS, POLYNOMIAL_FIT_LABELS } from '../../constants/fit';
 import type { PlotStats } from '../../types/plot';
 import { Panel } from '../common/Panel';
 
@@ -70,7 +71,8 @@ export const DatasetSummary = ({ stats }: DatasetSummaryProps) => {
                   </p>
                   <p className="text-xs font-mono text-slate-700">{series.fit.equation}</p>
                   <div className="flex flex-wrap gap-3 text-[11px] text-slate-500">
-                    <span>Type: {series.fit.type}</span>
+                    <span>Mode: {FIT_TYPE_LABELS[series.fit.selectedType]}</span>
+                    <span>Resolved: {POLYNOMIAL_FIT_LABELS[series.fit.resolvedType]}</span>
                     <span>Samples: {series.fit.sampleCount}</span>
                     <span>R²: {formatMetric(series.fit.rSquared)}</span>
                     <span>RMSE: {formatMetric(series.fit.rmse)}</span>
