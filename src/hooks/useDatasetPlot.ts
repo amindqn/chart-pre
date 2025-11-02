@@ -5,9 +5,16 @@ import type {
   ChartDisplayOptions,
   DataSeries,
   PlotStats,
+  SeriesFitType,
   SeriesStats,
 } from '../types/plot';
+import { DEFAULT_FIT_SAMPLE_COUNT } from '../constants/fit';
 import { calculateAreaUnderCurve } from '../utils/calculateAreaUnderCurve';
+import {
+  evaluatePolynomial,
+  getPolynomialDegree,
+  polynomialRegression,
+} from '../utils/polynomialRegression';
 
 const EMPTY_DATA: ChartData<'line'> = {
   labels: [],
@@ -25,6 +32,38 @@ const hexToRgba = (hexColor: string, alpha: number) => {
   const b = bigint & 255;
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
+
+const FIT_LABELS: Record<SeriesFitType, string> = {
+  linear: 'Linear fit',
+  quadratic: 'Quadratic fit',
+  cubic: 'Cubic fit',
+};
+
+const clampSampleCount = (value?: number): number => {
+  if (!Number.isFinite(value)) {
+    return DEFAULT_FIT_SAMPLE_COUNT;
+  }
+  const numeric = Math.floor(value as number);
+  if (numeric < 20) {
+    return 20;
+  }
+  if (numeric > 600) {
+    return 600;
+  }
+  return numeric;
+};
+
+interface NormalizedSeriesEntry {
+  meta: DataSeries;
+  stats: SeriesStats;
+  map: Map<number, number>;
+  points: Array<{ x: number; y: number }>;
+  fit: {
+    type: SeriesFitType;
+    coefficients: number[];
+    domain: { min: number; max: number };
+  } | null;
+}
 
 interface UseDatasetPlotResult {
   chartData: ChartData<'line'>;
@@ -51,9 +90,10 @@ export const useDatasetPlot = (
       };
     }
 
-    const xValueSet = new Set<number>();
-    const normalizedSeries = datasetsInput.map((series) => {
-      const points = series.points
+    const chartXValueSet = new Set<number>();
+    const baseXValueSet = new Set<number>();
+    const normalizedSeries: NormalizedSeriesEntry[] = datasetsInput.map((series) => {
+      const sanitizedPoints = series.points
         .map((point) => ({
           x: Number.parseFloat(String(point.x)),
           y: Number.parseFloat(String(point.y)),
@@ -63,76 +103,201 @@ export const useDatasetPlot = (
             Number.isFinite(point.x) && Number.isFinite(point.y)
         );
 
-      points.forEach((point) => xValueSet.add(point.x));
+      const sortedPoints = sanitizedPoints.sort((a, b) => a.x - b.x);
 
-      const map = new Map<number, number>();
-      points
-        .sort((a, b) => a.x - b.x)
-        .forEach((point) => {
-          map.set(point.x, point.y);
-        });
+      const pointMap = new Map<number, number>();
+      sortedPoints.forEach((point) => {
+        pointMap.set(point.x, point.y);
+      });
+
+      const uniquePoints = Array.from(pointMap.entries()).map(([x, y]) => ({
+        x,
+        y,
+      }));
+
+      uniquePoints.forEach((point) => {
+        chartXValueSet.add(point.x);
+        baseXValueSet.add(point.x);
+      });
 
       const stats: SeriesStats = {
         id: series.id,
         label: series.label,
         visible: series.visible,
-        validPoints: points.length,
-        minY: points.length ? Math.min(...points.map((p) => p.y)) : null,
-        maxY: points.length ? Math.max(...points.map((p) => p.y)) : null,
-        minX: points.length ? Math.min(...points.map((p) => p.x)) : null,
-        maxX: points.length ? Math.max(...points.map((p) => p.x)) : null,
+        validPoints: sortedPoints.length,
+        minY: sortedPoints.length ? Math.min(...sortedPoints.map((p) => p.y)) : null,
+        maxY: sortedPoints.length ? Math.max(...sortedPoints.map((p) => p.y)) : null,
+        minX: sortedPoints.length ? Math.min(...sortedPoints.map((p) => p.x)) : null,
+        maxX: sortedPoints.length ? Math.max(...sortedPoints.map((p) => p.x)) : null,
         areaUnderCurve: null,
       };
 
-      if (points.length < 2 && series.visible) {
+      if (sortedPoints.length < 2 && series.visible) {
         warnings.push(
           `Series "${series.label}" requires at least two valid points to render a curve.`
+        );
+      }
+
+      let fit: NormalizedSeriesEntry['fit'] = null;
+
+      if (series.fit && uniquePoints.length) {
+        const degree = getPolynomialDegree(series.fit.type);
+        if (uniquePoints.length <= degree) {
+          warnings.push(
+            `Series "${series.label}" needs at least ${degree + 1} unique points for a ${
+              FIT_LABELS[series.fit.type].toLowerCase()
+            }.`
+          );
+        } else {
+          const domainMin = uniquePoints[0].x;
+          const domainMax = uniquePoints[uniquePoints.length - 1].x;
+          if (
+            !Number.isFinite(domainMin) ||
+            !Number.isFinite(domainMax) ||
+            Math.abs(domainMax - domainMin) <= 1e-9
+          ) {
+            warnings.push(
+              `Series "${series.label}" requires at least two distinct x values to compute a fit.`
+            );
+          } else {
+            const sampleCount = clampSampleCount(series.fit.sampleCount ?? DEFAULT_FIT_SAMPLE_COUNT);
+            const range = domainMax - domainMin;
+            const step = sampleCount > 1 ? range / (sampleCount - 1) : 0;
+            try {
+              const { coefficients } = polynomialRegression(uniquePoints, degree);
+              for (let index = 0; index < sampleCount; index += 1) {
+                const x =
+                  index === sampleCount - 1
+                    ? domainMax
+                    : domainMin + step * index;
+                if (Number.isFinite(x)) {
+                  chartXValueSet.add(x);
+                }
+              }
+              fit = {
+                type: series.fit.type,
+                coefficients,
+                domain: { min: domainMin, max: domainMax },
+              };
+            } catch (error) {
+              const message =
+                error instanceof Error ? error.message : 'Unable to complete regression.';
+              warnings.push(
+                `Could not compute ${FIT_LABELS[series.fit.type].toLowerCase()} for "${series.label}": ${message}`
+              );
+            }
+          }
+        }
+      } else if (series.fit && !uniquePoints.length) {
+        warnings.push(
+          `At least two numeric data points are required to compute a fit for "${series.label}".`
         );
       }
 
       return {
         meta: series,
         stats,
-        map,
+        map: pointMap,
+        points: uniquePoints,
+        fit,
       };
     });
 
-    const labels = Array.from(xValueSet).sort((a, b) => a - b);
+    const labels = Array.from(chartXValueSet).sort((a, b) => a - b);
+    const chartDatasets: ChartData<'line'>['datasets'] = [];
+
+    normalizedSeries.forEach(({ meta, map, fit, stats, points }) => {
+      const baseColor = meta.color;
+      const fillColor = hexToRgba(baseColor, 0.18);
+      const tolerance = 1e-9;
+      let pointIndex = 0;
+      const data = labels.map((label) => {
+        if (map.has(label)) {
+          return map.get(label) ?? null;
+        }
+
+        while (
+          pointIndex < points.length &&
+          points[pointIndex].x < label - tolerance
+        ) {
+          pointIndex += 1;
+        }
+
+        const leftIndex = pointIndex - 1;
+        const rightIndex = pointIndex;
+
+        if (
+          leftIndex >= 0 &&
+          rightIndex < points.length &&
+          points[leftIndex].x < label &&
+          label < points[rightIndex].x
+        ) {
+          const left = points[leftIndex];
+          const right = points[rightIndex];
+          const span = right.x - left.x;
+          if (!Number.isFinite(span) || Math.abs(span) <= tolerance) {
+            return null;
+          }
+          const t = (label - left.x) / span;
+          return left.y + t * (right.y - left.y);
+        }
+
+        return null;
+      });
+
+      chartDatasets.push({
+        label: `${meta.label}`,
+        data,
+        borderColor: baseColor,
+        backgroundColor: fillColor,
+        pointBackgroundColor: baseColor,
+        pointRadius: options.showPoints ? 4 : 0,
+        pointHoverRadius: options.showPoints ? 6 : 0,
+        borderWidth: 2,
+        tension: options.smoothCurve ? 0.3 : 0,
+        spanGaps: true,
+        fill: options.fillArea ? { target: 'origin', above: fillColor } : false,
+        hidden: !meta.visible,
+      });
+
+      if (options.fillArea && meta.visible) {
+        stats.areaUnderCurve = calculateAreaUnderCurve(labels, data);
+      } else {
+        stats.areaUnderCurve = null;
+      }
+
+      if (fit) {
+        const fitData = labels.map((x) => {
+          if (x < fit.domain.min - 1e-9 || x > fit.domain.max + 1e-9) {
+            return null;
+          }
+          const value = evaluatePolynomial(fit.coefficients, x);
+          return Number.isFinite(value) ? value : null;
+        });
+
+        chartDatasets.push({
+          label: `${meta.label} (${FIT_LABELS[fit.type]})`,
+          data: fitData,
+          borderColor: baseColor,
+          backgroundColor: hexToRgba(baseColor, 0.1),
+          pointRadius: 0,
+          pointHoverRadius: 0,
+          borderWidth: 2,
+          tension: 0.2,
+          spanGaps: true,
+          fill: false,
+          hidden: !meta.visible,
+          borderDash: [6, 4],
+        });
+      }
+    });
 
     const chartData: ChartData<'line'> = {
       labels,
-      datasets: normalizedSeries.map(({ meta, map }) => {
-        const baseColor = meta.color;
-        const fillColor = hexToRgba(baseColor, 0.18);
-        const data = labels.map((x) => map.get(x) ?? null);
-        return {
-          id: meta.id,
-          label: `${meta.label}`,
-          data,
-          borderColor: baseColor,
-          backgroundColor: fillColor,
-          pointBackgroundColor: baseColor,
-          pointRadius: options.showPoints ? 4 : 0,
-          pointHoverRadius: options.showPoints ? 6 : 0,
-          borderWidth: 2,
-          tension: options.smoothCurve ? 0.3 : 0,
-          spanGaps: true,
-          fill: options.fillArea ? { target: 'origin', above: fillColor } : false,
-          hidden: !meta.visible,
-        };
-      }),
+      datasets: chartDatasets,
     };
 
-    normalizedSeries.forEach(({ stats, meta }, index) => {
-      if (!options.fillArea || !meta.visible) {
-        stats.areaUnderCurve = null;
-        return;
-      }
-
-      const datasetValues = chartData.datasets[index]?.data as Array<number | null>;
-      stats.areaUnderCurve = calculateAreaUnderCurve(labels, datasetValues);
-    });
-
+    const baseLabels = Array.from(baseXValueSet).sort((a, b) => a - b);
     const aggregateStats = normalizedSeries.map(({ stats }) => stats);
     const domainCandidates = aggregateStats.filter(
       (stat) => stat.minX !== null && stat.maxX !== null
@@ -147,14 +312,14 @@ export const useDatasetPlot = (
             ...domainCandidates.map((stat) => stat.maxX as number)
           ),
           step:
-            labels.length > 1 ? Math.abs(labels[1] - labels[0]) : 0,
+            baseLabels.length > 1 ? Math.abs(baseLabels[1] - baseLabels[0]) : 0,
         }
       : undefined;
 
     const stats: PlotStats = {
       mode: 'dataset',
       domain,
-      sampleCount: labels.length,
+      sampleCount: baseLabels.length,
       series: aggregateStats,
     };
 

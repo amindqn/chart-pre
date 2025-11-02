@@ -1,7 +1,14 @@
 import { useRef } from 'react';
 
-import type { DataPoint, DataSeries } from '../../types/plot';
+import { DEFAULT_FIT_SAMPLE_COUNT, DEFAULT_FIT_TYPE, FIT_SAMPLE_COUNT_OPTIONS } from '../../constants/fit';
+import type { DataPoint, DataSeries, SeriesFitConfig, SeriesFitType } from '../../types/plot';
 import { DataPointsEditor } from './DataPointsEditor';
+
+const FIT_TYPE_OPTIONS: Array<{ value: SeriesFitType; label: string }> = [
+  { value: 'linear', label: 'Linear' },
+  { value: 'quadratic', label: 'Quadratic' },
+  { value: 'cubic', label: 'Cubic' },
+];
 
 interface DataSeriesCardProps {
   series: DataSeries;
@@ -35,6 +42,25 @@ export const DataSeriesCard = ({
   const triggerFileDialog = () => {
     fileInputRef.current?.click();
   };
+
+  const buildFitConfig = (patch?: Partial<SeriesFitConfig>): SeriesFitConfig => ({
+    type: patch?.type ?? series.fit?.type ?? DEFAULT_FIT_TYPE,
+    sampleCount: patch?.sampleCount ?? series.fit?.sampleCount ?? DEFAULT_FIT_SAMPLE_COUNT,
+  });
+
+  const handleFitToggle = (enabled: boolean) => {
+    if (enabled) {
+      onChange(series.id, { fit: buildFitConfig() });
+    } else {
+      onChange(series.id, { fit: undefined });
+    }
+  };
+
+  const handleFitConfigChange = (patch: Partial<SeriesFitConfig>) => {
+    onChange(series.id, { fit: buildFitConfig(patch) });
+  };
+
+  const fitEnabled = Boolean(series.fit);
 
   return (
     <div
@@ -143,6 +169,72 @@ export const DataSeriesCard = ({
               Remove
             </button>
           </div>
+        </div>
+
+        <div
+          className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Curve fitting
+            </span>
+            <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
+              <input
+                type="checkbox"
+                checked={fitEnabled}
+                onChange={(event) => handleFitToggle(event.target.checked)}
+                className="h-4 w-4"
+              />
+              Enable
+            </label>
+          </div>
+
+          {fitEnabled && (
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+                Fit type
+                <select
+                  value={series.fit?.type ?? DEFAULT_FIT_TYPE}
+                  onChange={(event) =>
+                    handleFitConfigChange({
+                      type: event.target.value as SeriesFitType,
+                    })
+                  }
+                  className="rounded-md border border-slate-300 px-2 py-1 text-sm text-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                >
+                  {FIT_TYPE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+                Samples
+                <select
+                  value={series.fit?.sampleCount ?? DEFAULT_FIT_SAMPLE_COUNT}
+                  onChange={(event) =>
+                    handleFitConfigChange({
+                      sampleCount: Number.parseInt(event.target.value, 10),
+                    })
+                  }
+                  className="rounded-md border border-slate-300 px-2 py-1 text-sm text-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                >
+                  {FIT_SAMPLE_COUNT_OPTIONS.map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <p className="sm:col-span-3 text-xs text-slate-500">
+                Uses least squares regression to draw a smooth curve over your data. Higher samples increase smoothness.
+              </p>
+            </div>
+          )}
         </div>
 
         <DataPointsEditor

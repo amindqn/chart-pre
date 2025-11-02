@@ -30,12 +30,20 @@ export interface DataPoint {
   y: number;
 }
 
+export type SeriesFitType = 'linear' | 'quadratic' | 'cubic';
+
+export interface SeriesFitConfig {
+  type: SeriesFitType;
+  sampleCount: number;
+}
+
 export interface DataSeries {
   id: string;
   label: string;
   color: string;
   visible: boolean;
   points: DataPoint[];
+  fit?: SeriesFitConfig;
 }
 
 export interface SeriesStats {
