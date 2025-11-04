@@ -22,6 +22,8 @@ const INTERSECTION_DATASET_ID = "intersection-overlay";
 const INTERSECTION_POINT_RADIUS = 5;
 // const INTERSECTION_POINT_COLOR = "#f97316";
 // const INTERSECTION_POINT_BORDER_COLOR = "#c2410c";
+const BROWSER_ZOOM_BLOCK_KEYS: readonly string[] = ["+", "=", "-", "_", "0"];
+const BROWSER_ZOOM_BLOCK_CODES: readonly string[] = ["Equal", "Minus", "NumpadAdd", "NumpadSubtract", "Digit0", "Numpad0"];
 
 interface IntersectionPoint {
     x: number;
@@ -475,6 +477,65 @@ export const ChartDisplay = ({
     } | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const overflowRestoreRef = useRef<string | null>(null);
+    const containerRef = useRef<HTMLDivElement | null>(null);
+    const zoomBlockerActiveRef = useRef(false);
+
+    const preventBrowserZoomKeydown = useCallback((event: KeyboardEvent) => {
+        if (!(event.ctrlKey || event.metaKey)) {
+            return;
+        }
+        if (!BROWSER_ZOOM_BLOCK_KEYS.includes(event.key) && !BROWSER_ZOOM_BLOCK_CODES.includes(event.code)) {
+            return;
+        }
+        event.preventDefault();
+    }, []);
+
+    const preventBrowserZoomWheel = useCallback(
+        (event: WheelEvent) => {
+            const container = containerRef.current;
+            if (!container) {
+                return;
+            }
+            if (!(event.ctrlKey || event.metaKey)) {
+                return;
+            }
+            const rect = container.getBoundingClientRect();
+            if (
+                event.clientX < rect.left ||
+                event.clientX > rect.right ||
+                event.clientY < rect.top ||
+                event.clientY > rect.bottom
+            ) {
+                return;
+            }
+            event.preventDefault();
+        },
+        []
+    );
+
+    const enableBrowserZoomBlockers = useCallback(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+        if (zoomBlockerActiveRef.current) {
+            return;
+        }
+        window.addEventListener("wheel", preventBrowserZoomWheel, { passive: false, capture: true });
+        window.addEventListener("keydown", preventBrowserZoomKeydown, true);
+        zoomBlockerActiveRef.current = true;
+    }, [preventBrowserZoomKeydown, preventBrowserZoomWheel]);
+
+    const disableBrowserZoomBlockers = useCallback(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+        if (!zoomBlockerActiveRef.current) {
+            return;
+        }
+        window.removeEventListener("wheel", preventBrowserZoomWheel, true);
+        window.removeEventListener("keydown", preventBrowserZoomKeydown, true);
+        zoomBlockerActiveRef.current = false;
+    }, [preventBrowserZoomKeydown, preventBrowserZoomWheel]);
 
     const lockBodyScroll = useCallback(() => {
         if (typeof document === "undefined") {
@@ -501,32 +562,44 @@ export const ChartDisplay = ({
     useEffect(
         () => () => {
             unlockBodyScroll();
+            disableBrowserZoomBlockers();
         },
-        [unlockBodyScroll]
+        [unlockBodyScroll, disableBrowserZoomBlockers]
     );
 
     useEffect(() => {
         if (!hasData || !viewport) {
             unlockBodyScroll();
+            disableBrowserZoomBlockers();
         }
-    }, [hasData, viewport, unlockBodyScroll]);
+    }, [hasData, viewport, unlockBodyScroll, disableBrowserZoomBlockers]);
 
     const handleWheel = useCallback(
         (event: ReactWheelEvent<HTMLDivElement>) => {
             if (!hasData || !viewport) {
                 return;
             }
+            if (typeof event.nativeEvent.stopImmediatePropagation === "function") {
+                event.nativeEvent.stopImmediatePropagation();
+            }
+            event.nativeEvent.preventDefault();
             event.preventDefault();
             event.stopPropagation();
-            event.nativeEvent.preventDefault();
 
             const rect = event.currentTarget.getBoundingClientRect();
             const modifierPressed = event.shiftKey || event.altKey || event.metaKey || event.ctrlKey;
-            const isMostlyHorizontalScroll = Math.abs(event.deltaX) > Math.abs(event.deltaY) && Math.abs(event.deltaX) > 0;
+            const horizontalMagnitude = Math.abs(event.deltaX);
+            const verticalMagnitude = Math.abs(event.deltaY);
+            const isMostlyHorizontalScroll = horizontalMagnitude > verticalMagnitude && horizontalMagnitude > 0;
             const isVerticalZoom = modifierPressed || isMostlyHorizontalScroll;
             const horizontalDimension = isMobile ? rect.height : rect.width;
             const verticalDimension = rect.height;
-            const strength = 1 + Math.min(Math.abs(event.deltaY) / 500, 0.7);
+            const primaryDelta =
+                isVerticalZoom && isMostlyHorizontalScroll ? event.deltaX : event.deltaY;
+            if (primaryDelta === 0) {
+                return;
+            }
+            const strength = 1 + Math.min(Math.abs(primaryDelta) / 500, 0.7);
 
             if (isVerticalZoom) {
                 if (verticalDimension <= 0) {
@@ -535,9 +608,9 @@ export const ChartDisplay = ({
                 const verticalOffset = event.clientY - rect.top;
                 const ratio = Math.min(Math.max(verticalOffset / verticalDimension, 0), 1);
                 const anchor = viewport.yMax - ratio * (viewport.yMax - viewport.yMin);
-                if (event.deltaY < 0) {
+                if (primaryDelta < 0) {
                     onZoomYIn(anchor, 1 / strength);
-                } else if (event.deltaY > 0) {
+                } else if (primaryDelta > 0) {
                     onZoomYOut(anchor, strength);
                 }
                 return;
@@ -550,9 +623,9 @@ export const ChartDisplay = ({
             const horizontalOffset = isMobile ? event.clientY - rect.top : event.clientX - rect.left;
             const ratio = Math.min(Math.max(horizontalOffset / horizontalDimension, 0), 1);
             const anchor = viewport.xMin + ratio * (viewport.xMax - viewport.xMin);
-            if (event.deltaY < 0) {
+            if (primaryDelta < 0) {
                 onZoomIn(anchor, 1 / strength);
-            } else if (event.deltaY > 0) {
+            } else if (primaryDelta > 0) {
                 onZoomOut(anchor, strength);
             }
         },
@@ -564,18 +637,21 @@ export const ChartDisplay = ({
             return;
         }
         lockBodyScroll();
-    }, [hasData, viewport, lockBodyScroll]);
+        enableBrowserZoomBlockers();
+    }, [hasData, viewport, lockBodyScroll, enableBrowserZoomBlockers]);
 
     const handleMouseEnter = useCallback(() => {
         if (!hasData || !viewport) {
             return;
         }
         lockBodyScroll();
-    }, [hasData, viewport, lockBodyScroll]);
+        enableBrowserZoomBlockers();
+    }, [hasData, viewport, lockBodyScroll, enableBrowserZoomBlockers]);
 
     const handleMouseLeave = useCallback(() => {
         unlockBodyScroll();
-    }, [unlockBodyScroll]);
+        disableBrowserZoomBlockers();
+    }, [unlockBodyScroll, disableBrowserZoomBlockers]);
 
     const resolveDragMode = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
         if (event.pointerType === "mouse" && ((event.buttons & 2) !== 0 || event.button === 2)) {
@@ -721,8 +797,9 @@ export const ChartDisplay = ({
                 event.stopPropagation();
             }
             unlockBodyScroll();
+            disableBrowserZoomBlockers();
         },
-        [endDrag, unlockBodyScroll]
+        [endDrag, unlockBodyScroll, disableBrowserZoomBlockers]
     );
 
     const surfaceBackground =
@@ -733,7 +810,7 @@ export const ChartDisplay = ({
     const cursorClass = hasData && viewport ? (isDragging ? "cursor-grabbing" : "cursor-grab") : "cursor-default";
 
     const containerClasses = [
-        "relative w-full overflow-hidden rounded-2xl transition-colors duration-300",
+        "relative w-full overflow-hidden rounded-2xl transition-colors duration-300 overscroll-none",
         surfaceBackground,
         cursorClass,
         isMobile
@@ -766,6 +843,7 @@ export const ChartDisplay = ({
                 onDownloadCsv={onDownloadCsv}
             />
             <div
+                ref={containerRef}
                 className={containerClasses}
                 onWheelCapture={handleWheel}
                 onPointerDown={handlePointerDown}
