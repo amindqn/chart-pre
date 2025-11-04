@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { WheelEvent as ReactWheelEvent } from "react";
+import type {
+    FocusEvent as ReactFocusEvent,
+    MouseEvent as ReactMouseEvent,
+    WheelEvent as ReactWheelEvent,
+} from "react";
 import type { ChartData, ChartDataset, ChartOptions as ChartJsOptions, Plugin } from "chart.js";
 import { Line } from "react-chartjs-2";
 
@@ -479,6 +483,10 @@ export const ChartDisplay = ({
     const overflowRestoreRef = useRef<string | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const zoomBlockerActiveRef = useRef(false);
+    const zoomButtonRef = useRef<HTMLButtonElement | null>(null);
+    const toolbarOverlayRef = useRef<HTMLDivElement | null>(null);
+    const hideToolbarTimeoutRef = useRef<number | null>(null);
+    const [isToolbarVisible, setToolbarVisible] = useState(false);
 
     const preventBrowserZoomKeydown = useCallback((event: KeyboardEvent) => {
         if (!(event.ctrlKey || event.metaKey)) {
@@ -529,6 +537,39 @@ export const ChartDisplay = ({
         zoomBlockerActiveRef.current = false;
     }, [preventBrowserZoomKeydown, preventBrowserZoomWheel]);
 
+    const clearToolbarHideTimeout = useCallback(() => {
+        if (hideToolbarTimeoutRef.current !== null) {
+            window.clearTimeout(hideToolbarTimeoutRef.current);
+            hideToolbarTimeoutRef.current = null;
+        }
+    }, []);
+
+    const showToolbar = useCallback(() => {
+        clearToolbarHideTimeout();
+        setToolbarVisible(true);
+    }, [clearToolbarHideTimeout]);
+
+    const scheduleToolbarHide = useCallback(() => {
+        if (isMobile) {
+            return;
+        }
+        clearToolbarHideTimeout();
+        hideToolbarTimeoutRef.current = window.setTimeout(() => {
+            const overlayEl = toolbarOverlayRef.current;
+            const triggerEl = zoomButtonRef.current;
+            if (
+                overlayEl &&
+                typeof overlayEl.matches === "function" &&
+                (overlayEl.matches(":hover") || (triggerEl && typeof triggerEl.matches === "function" && triggerEl.matches(":hover")))
+            ) {
+                showToolbar();
+                return;
+            }
+            setToolbarVisible(false);
+            hideToolbarTimeoutRef.current = null;
+        }, 320);
+    }, [clearToolbarHideTimeout, isMobile, showToolbar]);
+
     const lockBodyScroll = useCallback(() => {
         if (typeof document === "undefined") {
             return;
@@ -565,6 +606,34 @@ export const ChartDisplay = ({
             disableBrowserZoomBlockers();
         }
     }, [hasData, viewport, unlockBodyScroll, disableBrowserZoomBlockers]);
+
+    useEffect(
+        () => () => {
+            clearToolbarHideTimeout();
+        },
+        [clearToolbarHideTimeout]
+    );
+
+    useEffect(() => {
+        if (typeof window === "undefined") {
+            return;
+        }
+        if (!isToolbarVisible || !isMobile) {
+            return;
+        }
+        const handlePointerDown = (event: PointerEvent) => {
+            const target = event.target as Node | null;
+            if ((target && toolbarOverlayRef.current?.contains(target)) || (target && zoomButtonRef.current?.contains(target))) {
+                return;
+            }
+            setToolbarVisible(false);
+        };
+        const doc = window.document;
+        doc.addEventListener("pointerdown", handlePointerDown);
+        return () => {
+            doc.removeEventListener("pointerdown", handlePointerDown);
+        };
+    }, [isToolbarVisible, isMobile]);
 
     const handleWheel = useCallback(
         (event: ReactWheelEvent<HTMLDivElement>) => {
@@ -789,6 +858,103 @@ export const ChartDisplay = ({
         [endDrag, unlockBodyScroll, disableBrowserZoomBlockers]
     );
 
+    const handleZoomTriggerMouseEnter = useCallback(() => {
+        if (isMobile) {
+            return;
+        }
+        showToolbar();
+    }, [isMobile, showToolbar]);
+
+    const handleZoomTriggerMouseLeave = useCallback(
+        (event: ReactMouseEvent<HTMLButtonElement>) => {
+            if (isMobile) {
+                return;
+            }
+            const nextElement = event.relatedTarget as Node | null;
+            if (nextElement && toolbarOverlayRef.current?.contains(nextElement)) {
+                showToolbar();
+                return;
+            }
+            scheduleToolbarHide();
+        },
+        [isMobile, scheduleToolbarHide, showToolbar]
+    );
+
+    const handleZoomTriggerFocus = useCallback(() => {
+        showToolbar();
+    }, [showToolbar]);
+
+    const handleZoomTriggerBlur = useCallback(
+        (event: ReactFocusEvent<HTMLButtonElement>) => {
+            if (isMobile) {
+                return;
+            }
+            const nextElement = event.relatedTarget as Node | null;
+            if (nextElement && toolbarOverlayRef.current?.contains(nextElement)) {
+                return;
+            }
+            scheduleToolbarHide();
+        },
+        [isMobile, scheduleToolbarHide]
+    );
+
+    const handleZoomTriggerClick = useCallback(() => {
+        if (isMobile) {
+            setToolbarVisible((prev) => {
+                clearToolbarHideTimeout();
+                return !prev;
+            });
+            return;
+        }
+        showToolbar();
+    }, [isMobile, clearToolbarHideTimeout, showToolbar]);
+
+    const handleToolbarMouseEnter = useCallback(() => {
+        if (isMobile) {
+            return;
+        }
+        showToolbar();
+    }, [isMobile, showToolbar]);
+
+    const handleToolbarMouseLeave = useCallback(
+        (event: ReactMouseEvent<HTMLDivElement>) => {
+            if (isMobile) {
+                return;
+            }
+            const nextElement = event.relatedTarget as Node | null;
+            if (
+                (nextElement && toolbarOverlayRef.current?.contains(nextElement)) ||
+                (nextElement && zoomButtonRef.current?.contains(nextElement))
+            ) {
+                showToolbar();
+                return;
+            }
+            scheduleToolbarHide();
+        },
+        [isMobile, scheduleToolbarHide, showToolbar]
+    );
+
+    const handleToolbarFocus = useCallback(() => {
+        showToolbar();
+    }, [showToolbar]);
+
+    const handleToolbarBlur = useCallback(
+        (event: ReactFocusEvent<HTMLDivElement>) => {
+            if (isMobile) {
+                return;
+            }
+            const nextElement = event.relatedTarget as Node | null;
+            if (
+                (nextElement && toolbarOverlayRef.current?.contains(nextElement)) ||
+                (nextElement && zoomButtonRef.current?.contains(nextElement))
+            ) {
+                return;
+            }
+            scheduleToolbarHide();
+        },
+        [isMobile, scheduleToolbarHide]
+    );
+
     const surfaceBackground =
         theme === "dark"
             ? "bg-gradient-to-br from-slate-900/80 via-slate-900/40 to-slate-800/80"
@@ -811,58 +977,109 @@ export const ChartDisplay = ({
             : "flex h-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white/70";
 
     const emptyStateTextClass = theme === "dark" ? "text-sm font-medium text-slate-200" : "text-sm font-medium text-slate-500";
+    const isDark = theme === "dark";
+
+    const zoomTriggerClass = [
+        "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+        isDark
+            ? "border-slate-600 bg-slate-900/80 text-slate-100 shadow shadow-slate-900/40 hover:bg-blue-500/20 focus-visible:ring-blue-400 focus-visible:ring-offset-slate-900"
+            : "border-slate-200 bg-white/90 text-slate-700 shadow-sm shadow-slate-200 hover:border-blue-400 hover:text-blue-600 focus-visible:ring-blue-500 focus-visible:ring-offset-white",
+    ].join(" ");
+
+    const overlayCardClass = [
+        "w-full max-w-xs rounded-2xl border px-4 py-4 shadow-xl backdrop-blur",
+        isDark ? "border-slate-700/70 bg-slate-900/85 shadow-slate-900/40" : "border-slate-200 bg-white/95 shadow-slate-300/40",
+    ].join(" ");
+
+    const overlayBaseClass =
+        "absolute left-0 top-full z-50 mt-2 transform-gpu transition-all duration-150 ease-out sm:mt-3";
+    const overlayHiddenClass = "pointer-events-none translate-y-2 opacity-0";
+    const overlayVisibleClass = "pointer-events-auto translate-y-0 opacity-100";
 
     return (
-        <div className="relative">
-            <Panel
-                title="Chart"
-                className="space-y-4 sm:space-y-5"
-            >
-                <div className="flex flex-col gap-6 lg:flex-row">
-                    <div className="order-2 flex-1 lg:order-1">
-                        <div
-                            ref={containerRef}
-                            className={containerClasses}
-                            onWheelCapture={handleWheel}
-                            onPointerDown={handlePointerDown}
-                            onPointerMove={handlePointerMove}
-                            onPointerUp={handlePointerUp}
-                            onPointerCancel={handlePointerLeave}
-                            onPointerLeave={handlePointerLeave}
-                            onPointerEnter={handlePointerEnter}
-                            onMouseEnter={handleMouseEnter}
-                            onMouseLeave={handleMouseLeave}
-                            onContextMenu={(event) => event.preventDefault()}
-                        >
-                            {hasData ? (
-                                isMobile ? (
-                                    <div className="h-full w-full">{lineChart}</div>
-                                ) : (
-                                    lineChart
-                                )
-                            ) : (
-                                <div className={emptyStateClasses}>
-                                    <p className={emptyStateTextClass}>Configure a function or import data to see the graph.</p>
-                                </div>
-                            )}
+        <Panel
+            title="Chart"
+            className="space-y-4 sm:space-y-5"
+        >
+            <div className="relative space-y-4">
+                <div className="relative flex justify-end sm:justify-start">
+                    <button
+                        ref={zoomButtonRef}
+                        type="button"
+                        className={`${zoomTriggerClass} relative z-40`}
+                        onMouseEnter={handleZoomTriggerMouseEnter}
+                        onMouseLeave={handleZoomTriggerMouseLeave}
+                        onFocus={handleZoomTriggerFocus}
+                        onBlur={handleZoomTriggerBlur}
+                        onClick={handleZoomTriggerClick}
+                    >
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-500 text-xs font-bold text-white shadow-md shadow-blue-500/40">
+                            +
+                        </span>
+                        Chart Controls
+                    </button>
+
+                    <div
+                        ref={toolbarOverlayRef}
+                        className={[
+                            overlayBaseClass,
+                            isToolbarVisible ? overlayVisibleClass : overlayHiddenClass,
+                        ].join(" ")}
+                        onMouseEnter={handleToolbarMouseEnter}
+                        onMouseLeave={handleToolbarMouseLeave}
+                        onFocus={handleToolbarFocus}
+                        onBlur={handleToolbarBlur}
+                        tabIndex={-1}
+                    >
+                        <div className="relative w-[min(18rem,90vw)]">
+                            <span className="pointer-events-auto absolute -top-4 left-0 right-0 block h-4 sm:-top-5 sm:h-5" aria-hidden="true" />
+                            <div className={overlayCardClass}>
+                                <ChartToolbar
+                                    className="w-full"
+                                    onZoomIn={onZoomIn}
+                                    onZoomOut={onZoomOut}
+                                    onZoomYIn={onZoomYIn}
+                                onZoomYOut={onZoomYOut}
+                                onPanLeft={onPanLeft}
+                                onPanRight={onPanRight}
+                                onPanUp={onPanUp}
+                                onPanDown={onPanDown}
+                                onReset={onResetView}
+                                onDownloadCsv={onDownloadCsv}
+                                theme={theme}
+                            />
+                            </div>
                         </div>
                     </div>
                 </div>
-            </Panel>
-            <ChartToolbar
-                className="order-1 w-full lg:order-2 lg:w-64 xl:w-72"
-                onZoomIn={onZoomIn}
-                onZoomOut={onZoomOut}
-                onZoomYIn={onZoomYIn}
-                onZoomYOut={onZoomYOut}
-                onPanLeft={onPanLeft}
-                onPanRight={onPanRight}
-                onPanUp={onPanUp}
-                onPanDown={onPanDown}
-                onReset={onResetView}
-                onDownloadCsv={onDownloadCsv}
-                theme={theme}
-            />
-        </div>
+
+                <div
+                    ref={containerRef}
+                    className={containerClasses}
+                    onWheelCapture={handleWheel}
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerCancel={handlePointerLeave}
+                    onPointerLeave={handlePointerLeave}
+                    onPointerEnter={handlePointerEnter}
+                    onMouseEnter={handleMouseEnter}
+                    onMouseLeave={handleMouseLeave}
+                    onContextMenu={(event) => event.preventDefault()}
+                >
+                    {hasData ? (
+                        isMobile ? (
+                            <div className="h-full w-full">{lineChart}</div>
+                        ) : (
+                            lineChart
+                        )
+                    ) : (
+                        <div className={emptyStateClasses}>
+                            <p className={emptyStateTextClass}>Configure a function or import data to see the graph.</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </Panel>
     );
 };
