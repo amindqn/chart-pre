@@ -41,6 +41,42 @@ const extractBounds = (chartData: ChartData<'line'>): Bounds | null => {
 const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
+const shiftRangeWithinBounds = (
+  min: number,
+  max: number,
+  delta: number,
+  boundMin: number,
+  boundMax: number
+) => {
+  let nextMin = min + delta;
+  let nextMax = max + delta;
+
+  if (nextMin < boundMin) {
+    const adjustment = boundMin - nextMin;
+    nextMin += adjustment;
+    nextMax += adjustment;
+  }
+
+  if (nextMax > boundMax) {
+    const adjustment = nextMax - boundMax;
+    nextMin -= adjustment;
+    nextMax -= adjustment;
+  }
+
+  nextMin = clamp(nextMin, boundMin, boundMax);
+  nextMax = clamp(nextMax, boundMin, boundMax);
+
+  if (nextMax - nextMin < 1e-6) {
+    return { changed: false as const, min, max };
+  }
+
+  if (Math.abs(nextMin - min) < 1e-9 && Math.abs(nextMax - max) < 1e-9) {
+    return { changed: false as const, min, max };
+  }
+
+  return { changed: true as const, min: nextMin, max: nextMax };
+};
+
 const clampViewport = (
   bounds: Bounds,
   candidate: Bounds
@@ -69,65 +105,9 @@ export const useChartViewport = (chartData: ChartData<'line'>) => {
     setViewport(null);
   }, [bounds]);
 
-  const zoomByFactor = useCallback(
+  const zoomXAxis = useCallback(
     (factor: number, anchor?: number) => {
-      if (!viewport || !bounds || factor <= 0) {
-        return;
-      }
-      const range = viewport.xMax - viewport.xMin;
-      if (range <= 0) {
-        return;
-      }
-      const effectiveAnchor =
-        anchor !== undefined && anchor >= bounds.xMin && anchor <= bounds.xMax
-          ? anchor
-          : viewport.xMin + range / 2;
-
-      const leftPortion = effectiveAnchor - viewport.xMin;
-      const rightPortion = viewport.xMax - effectiveAnchor;
-      const newLeftPortion = leftPortion * factor;
-      const newRightPortion = rightPortion * factor;
-
-      const candidate: Bounds = {
-        xMin: effectiveAnchor - newLeftPortion,
-        xMax: effectiveAnchor + newRightPortion,
-        yMin: viewport.yMin,
-        yMax: viewport.yMax,
-      };
-
-      setViewport(clampViewport(bounds, candidate));
-    },
-    [viewport, bounds]
-  );
-
-  const pan = useCallback(
-    (direction: 'left' | 'right') => {
-      if (!viewport || !bounds) {
-        return;
-      }
-      const range = viewport.xMax - viewport.xMin;
-      const delta = range * 0.25 * (direction === 'left' ? -1 : 1);
-      const newMin = clamp(viewport.xMin + delta, bounds.xMin, bounds.xMax);
-      const newMax = clamp(viewport.xMax + delta, bounds.xMin, bounds.xMax);
-      if (newMax - newMin < 1e-6) {
-        return;
-      }
-      setViewport((prev) =>
-        prev
-          ? {
-              ...prev,
-              xMin: newMin,
-              xMax: newMax,
-            }
-          : prev
-      );
-    },
-    [viewport, bounds]
-  );
-
-  const panByOffset = useCallback(
-    (delta: number) => {
-      if (!bounds || Math.abs(delta) < 1e-12) {
+      if (!bounds || factor <= 0) {
         return;
       }
 
@@ -141,35 +121,175 @@ export const useChartViewport = (chartData: ChartData<'line'>) => {
           return prev;
         }
 
-        let newMin = prev.xMin + delta;
-        let newMax = prev.xMax + delta;
+        const effectiveAnchor =
+          anchor !== undefined && anchor >= bounds.xMin && anchor <= bounds.xMax
+            ? anchor
+            : prev.xMin + range / 2;
 
-        if (newMin < bounds.xMin) {
-          const adjustment = bounds.xMin - newMin;
-          newMin += adjustment;
-          newMax += adjustment;
-        }
-        if (newMax > bounds.xMax) {
-          const adjustment = newMax - bounds.xMax;
-          newMin -= adjustment;
-          newMax -= adjustment;
-        }
+        const leftPortion = effectiveAnchor - prev.xMin;
+        const rightPortion = prev.xMax - effectiveAnchor;
+        const newLeftPortion = leftPortion * factor;
+        const newRightPortion = rightPortion * factor;
 
-        newMin = clamp(newMin, bounds.xMin, bounds.xMax);
-        newMax = clamp(newMax, bounds.xMin, bounds.xMax);
+        const candidate: Bounds = {
+          xMin: effectiveAnchor - newLeftPortion,
+          xMax: effectiveAnchor + newRightPortion,
+          yMin: prev.yMin,
+          yMax: prev.yMax,
+        };
 
-        if (newMax - newMin < 1e-6) {
+        return clampViewport(bounds, candidate);
+      });
+    },
+    [bounds]
+  );
+
+  const zoomYAxis = useCallback(
+    (factor: number, anchor?: number) => {
+      if (!bounds || factor <= 0) {
+        return;
+      }
+
+      setViewport((prev) => {
+        if (!prev) {
           return prev;
         }
 
-        if (
-          Math.abs(newMin - prev.xMin) < 1e-9 &&
-          Math.abs(newMax - prev.xMax) < 1e-9
-        ) {
+        const range = prev.yMax - prev.yMin;
+        if (range <= 0) {
           return prev;
         }
 
-        return { ...prev, xMin: newMin, xMax: newMax };
+        const effectiveAnchor =
+          anchor !== undefined && anchor >= bounds.yMin && anchor <= bounds.yMax
+            ? anchor
+            : prev.yMin + range / 2;
+
+        const lowerPortion = effectiveAnchor - prev.yMin;
+        const upperPortion = prev.yMax - effectiveAnchor;
+        const newLowerPortion = lowerPortion * factor;
+        const newUpperPortion = upperPortion * factor;
+
+        const candidate: Bounds = {
+          xMin: prev.xMin,
+          xMax: prev.xMax,
+          yMin: effectiveAnchor - newLowerPortion,
+          yMax: effectiveAnchor + newUpperPortion,
+        };
+
+        return clampViewport(bounds, candidate);
+      });
+    },
+    [bounds]
+  );
+
+  const pan = useCallback(
+    (direction: 'left' | 'right') => {
+      if (!bounds) {
+        return;
+      }
+      setViewport((prev) => {
+        if (!prev) {
+          return prev;
+        }
+        const range = prev.xMax - prev.xMin;
+        if (range <= 0) {
+          return prev;
+        }
+        const delta = range * 0.25 * (direction === 'left' ? -1 : 1);
+        const shifted = shiftRangeWithinBounds(
+          prev.xMin,
+          prev.xMax,
+          delta,
+          bounds.xMin,
+          bounds.xMax
+        );
+        if (!shifted.changed) {
+          return prev;
+        }
+        return { ...prev, xMin: shifted.min, xMax: shifted.max };
+      });
+    },
+    [bounds]
+  );
+
+  const panVertical = useCallback(
+    (direction: 'up' | 'down') => {
+      if (!bounds) {
+        return;
+      }
+      setViewport((prev) => {
+        if (!prev) {
+          return prev;
+        }
+        const range = prev.yMax - prev.yMin;
+        if (range <= 0) {
+          return prev;
+        }
+        const delta = range * 0.25 * (direction === 'up' ? 1 : -1);
+        const shifted = shiftRangeWithinBounds(
+          prev.yMin,
+          prev.yMax,
+          delta,
+          bounds.yMin,
+          bounds.yMax
+        );
+        if (!shifted.changed) {
+          return prev;
+        }
+        return { ...prev, yMin: shifted.min, yMax: shifted.max };
+      });
+    },
+    [bounds]
+  );
+
+  const panByOffset = useCallback(
+    (delta: number) => {
+      if (!bounds || Math.abs(delta) < 1e-12) {
+        return;
+      }
+
+      setViewport((prev) => {
+        if (!prev) {
+          return prev;
+        }
+        const shifted = shiftRangeWithinBounds(
+          prev.xMin,
+          prev.xMax,
+          delta,
+          bounds.xMin,
+          bounds.xMax
+        );
+        if (!shifted.changed) {
+          return prev;
+        }
+        return { ...prev, xMin: shifted.min, xMax: shifted.max };
+      });
+    },
+    [bounds]
+  );
+
+  const panYByOffset = useCallback(
+    (delta: number) => {
+      if (!bounds || Math.abs(delta) < 1e-12) {
+        return;
+      }
+
+      setViewport((prev) => {
+        if (!prev) {
+          return prev;
+        }
+        const shifted = shiftRangeWithinBounds(
+          prev.yMin,
+          prev.yMax,
+          delta,
+          bounds.yMin,
+          bounds.yMax
+        );
+        if (!shifted.changed) {
+          return prev;
+        }
+        return { ...prev, yMin: shifted.min, yMax: shifted.max };
       });
     },
     [bounds]
@@ -184,12 +304,19 @@ export const useChartViewport = (chartData: ChartData<'line'>) => {
   return {
     viewport,
     zoomIn: (anchor?: number, factor = 0.85) =>
-      zoomByFactor(Math.max(Math.min(factor, 0.99), 0.01), anchor),
+      zoomXAxis(Math.max(Math.min(factor, 0.99), 0.01), anchor),
     zoomOut: (anchor?: number, factor = 1.15) =>
-      zoomByFactor(Math.max(factor, 1.01), anchor),
+      zoomXAxis(Math.max(factor, 1.01), anchor),
+    zoomYIn: (anchor?: number, factor = 0.85) =>
+      zoomYAxis(Math.max(Math.min(factor, 0.99), 0.01), anchor),
+    zoomYOut: (anchor?: number, factor = 1.15) =>
+      zoomYAxis(Math.max(factor, 1.01), anchor),
     panLeft: () => pan('left'),
     panRight: () => pan('right'),
+    panUp: () => panVertical('up'),
+    panDown: () => panVertical('down'),
     reset,
     panByOffset,
+    panYByOffset,
   };
 };

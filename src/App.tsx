@@ -151,10 +151,15 @@ function App() {
               onDownloadCsv={handleDownloadCsv}
               onZoomIn={viewportControls.zoomIn}
               onZoomOut={viewportControls.zoomOut}
+              onZoomYIn={viewportControls.zoomYIn}
+              onZoomYOut={viewportControls.zoomYOut}
               onPanLeft={viewportControls.panLeft}
               onPanRight={viewportControls.panRight}
+              onPanUp={viewportControls.panUp}
+              onPanDown={viewportControls.panDown}
               onResetView={viewportControls.reset}
               onPanByOffset={viewportControls.panByOffset}
+              onPanYByOffset={viewportControls.panYByOffset}
             />
 
             {datasetManager.importFeedback && (

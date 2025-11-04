@@ -150,10 +150,15 @@ interface ChartDisplayProps {
     onDownloadCsv: () => void;
     onZoomIn: (anchor?: number, factor?: number) => void;
     onZoomOut: (anchor?: number, factor?: number) => void;
+    onZoomYIn: (anchor?: number, factor?: number) => void;
+    onZoomYOut: (anchor?: number, factor?: number) => void;
     onPanLeft: () => void;
     onPanRight: () => void;
+    onPanUp: () => void;
+    onPanDown: () => void;
     onResetView: () => void;
     onPanByOffset: (delta: number) => void;
+    onPanYByOffset: (delta: number) => void;
 }
 
 export const ChartDisplay = ({
@@ -164,10 +169,15 @@ export const ChartDisplay = ({
     onDownloadCsv,
     onZoomIn,
     onZoomOut,
+    onZoomYIn,
+    onZoomYOut,
     onPanLeft,
     onPanRight,
+    onPanUp,
+    onPanDown,
     onResetView,
     onPanByOffset,
+    onPanYByOffset,
 }: ChartDisplayProps) => {
     const isMobile = useMediaQuery("(max-width: 640px)");
     const intersectionPoints = useMemo(() => computeIntersections(chartData), [chartData]);
@@ -461,6 +471,7 @@ export const ChartDisplay = ({
         lastClientX: number;
         lastClientY: number;
         isActive: boolean;
+        mode: "x" | "y";
     } | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const overflowRestoreRef = useRef<string | null>(null);
@@ -510,22 +521,42 @@ export const ChartDisplay = ({
             event.nativeEvent.preventDefault();
 
             const rect = event.currentTarget.getBoundingClientRect();
-            const dimension = isMobile ? rect.height : rect.width;
-            if (dimension <= 0) {
+            const modifierPressed = event.shiftKey || event.altKey || event.metaKey || event.ctrlKey;
+            const isMostlyHorizontalScroll = Math.abs(event.deltaX) > Math.abs(event.deltaY) && Math.abs(event.deltaX) > 0;
+            const isVerticalZoom = modifierPressed || isMostlyHorizontalScroll;
+            const horizontalDimension = isMobile ? rect.height : rect.width;
+            const verticalDimension = rect.height;
+            const strength = 1 + Math.min(Math.abs(event.deltaY) / 500, 0.7);
+
+            if (isVerticalZoom) {
+                if (verticalDimension <= 0) {
+                    return;
+                }
+                const verticalOffset = event.clientY - rect.top;
+                const ratio = Math.min(Math.max(verticalOffset / verticalDimension, 0), 1);
+                const anchor = viewport.yMax - ratio * (viewport.yMax - viewport.yMin);
+                if (event.deltaY < 0) {
+                    onZoomYIn(anchor, 1 / strength);
+                } else if (event.deltaY > 0) {
+                    onZoomYOut(anchor, strength);
+                }
                 return;
             }
 
-            const offset = isMobile ? event.clientY - rect.top : event.clientX - rect.left;
-            const ratio = Math.min(Math.max(offset / dimension, 0), 1);
+            if (horizontalDimension <= 0) {
+                return;
+            }
+
+            const horizontalOffset = isMobile ? event.clientY - rect.top : event.clientX - rect.left;
+            const ratio = Math.min(Math.max(horizontalOffset / horizontalDimension, 0), 1);
             const anchor = viewport.xMin + ratio * (viewport.xMax - viewport.xMin);
-            const strength = 1 + Math.min(Math.abs(event.deltaY) / 500, 0.7);
             if (event.deltaY < 0) {
                 onZoomIn(anchor, 1 / strength);
             } else if (event.deltaY > 0) {
                 onZoomOut(anchor, strength);
             }
         },
-        [hasData, viewport, onZoomIn, onZoomOut, isMobile]
+        [hasData, viewport, onZoomIn, onZoomOut, onZoomYIn, onZoomYOut, isMobile]
     );
 
     const handlePointerEnter = useCallback(() => {
@@ -546,13 +577,24 @@ export const ChartDisplay = ({
         unlockBodyScroll();
     }, [unlockBodyScroll]);
 
+    const resolveDragMode = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+        if (event.pointerType === "mouse" && ((event.buttons & 2) !== 0 || event.button === 2)) {
+            return "y";
+        }
+        return event.shiftKey || event.altKey || event.metaKey || event.ctrlKey ? "y" : "x";
+    }, []);
+
     const handlePointerDown = useCallback(
         (event: React.PointerEvent<HTMLDivElement>) => {
             if (!hasData || !viewport) {
                 return;
             }
-            if (event.pointerType === "mouse" && event.button !== 0) {
-                return;
+            if (event.pointerType === "mouse") {
+                if (event.button === 2) {
+                    event.preventDefault();
+                } else if (event.button !== 0) {
+                    return;
+                }
             }
 
             dragStateRef.current = {
@@ -560,9 +602,10 @@ export const ChartDisplay = ({
                 lastClientX: event.clientX,
                 lastClientY: event.clientY,
                 isActive: false,
+                mode: resolveDragMode(event),
             };
         },
-        [hasData, viewport]
+        [hasData, viewport, resolveDragMode]
     );
 
     const handlePointerMove = useCallback(
@@ -576,12 +619,29 @@ export const ChartDisplay = ({
             }
 
             const rect = event.currentTarget.getBoundingClientRect();
-            const dimension = isMobile ? rect.height : rect.width;
+            const desiredMode = resolveDragMode(event);
+            if (dragState.mode !== desiredMode) {
+                dragState.mode = desiredMode;
+                dragState.lastClientX = event.clientX;
+                dragState.lastClientY = event.clientY;
+                return;
+            }
+
+            const isHorizontalMode = dragState.mode === "x";
+            const dimension = isHorizontalMode
+                ? isMobile
+                    ? rect.height
+                    : rect.width
+                : rect.height;
             if (dimension <= 0) {
                 return;
             }
 
-            const deltaPrimary = isMobile ? event.clientY - dragState.lastClientY : event.clientX - dragState.lastClientX;
+            const deltaPrimary = isHorizontalMode
+                ? isMobile
+                    ? event.clientY - dragState.lastClientY
+                    : event.clientX - dragState.lastClientX
+                : event.clientY - dragState.lastClientY;
             const hasSignificantMovement = Math.abs(deltaPrimary) >= 1;
 
             if (!dragState.isActive) {
@@ -601,16 +661,20 @@ export const ChartDisplay = ({
             dragState.lastClientX = event.clientX;
             dragState.lastClientY = event.clientY;
 
-            const range = viewport.xMax - viewport.xMin;
+            const range = isHorizontalMode ? viewport.xMax - viewport.xMin : viewport.yMax - viewport.yMin;
             if (range <= 0) {
                 return;
             }
 
             const ratio = deltaPrimary / dimension;
             const delta = -ratio * range;
-            onPanByOffset(delta);
+            if (isHorizontalMode) {
+                onPanByOffset(delta);
+            } else {
+                onPanYByOffset(delta);
+            }
         },
-        [viewport, onPanByOffset, isMobile]
+        [viewport, onPanByOffset, onPanYByOffset, isMobile, resolveDragMode]
     );
 
     const endDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
@@ -692,8 +756,12 @@ export const ChartDisplay = ({
             <ChartToolbar
                 onZoomIn={onZoomIn}
                 onZoomOut={onZoomOut}
+                onZoomYIn={onZoomYIn}
+                onZoomYOut={onZoomYOut}
                 onPanLeft={onPanLeft}
                 onPanRight={onPanRight}
+                onPanUp={onPanUp}
+                onPanDown={onPanDown}
                 onReset={onResetView}
                 onDownloadCsv={onDownloadCsv}
             />
@@ -708,6 +776,7 @@ export const ChartDisplay = ({
                 onPointerEnter={handlePointerEnter}
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
+                onContextMenu={(event) => event.preventDefault()}
             >
                 {hasData ? (isMobile ? <div className="h-full w-full">{lineChart}</div> : lineChart) : (
                     <div className={emptyStateClasses}>
