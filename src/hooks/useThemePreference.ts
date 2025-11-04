@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 export type ThemeMode = 'light' | 'dark';
 
-const STORAGE_KEY = 'chart-pre-theme';
+const STORAGE_KEY = 'grapher-theme';
 
 const getPreferredTheme = (): ThemeMode => {
   if (typeof window === 'undefined') {

@@ -841,6 +841,7 @@ export const ChartDisplay = ({
                 onPanDown={onPanDown}
                 onReset={onResetView}
                 onDownloadCsv={onDownloadCsv}
+                theme={theme}
             />
             <div
                 ref={containerRef}
