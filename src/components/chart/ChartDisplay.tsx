@@ -278,7 +278,7 @@ export const ChartDisplay = ({
             ...chartData,
             datasets: datasetsWithIntersections,
         };
-    }, [chartData, intersectionPoints,theme]);
+    }, [chartData, intersectionPoints, theme]);
 
     const chartOptions = useMemo<ChartJsOptions<"line">>(
         () => ({
@@ -490,28 +490,20 @@ export const ChartDisplay = ({
         event.preventDefault();
     }, []);
 
-    const preventBrowserZoomWheel = useCallback(
-        (event: WheelEvent) => {
-            const container = containerRef.current;
-            if (!container) {
-                return;
-            }
-            if (!(event.ctrlKey || event.metaKey)) {
-                return;
-            }
-            const rect = container.getBoundingClientRect();
-            if (
-                event.clientX < rect.left ||
-                event.clientX > rect.right ||
-                event.clientY < rect.top ||
-                event.clientY > rect.bottom
-            ) {
-                return;
-            }
-            event.preventDefault();
-        },
-        []
-    );
+    const preventBrowserZoomWheel = useCallback((event: WheelEvent) => {
+        const container = containerRef.current;
+        if (!container) {
+            return;
+        }
+        if (!(event.ctrlKey || event.metaKey)) {
+            return;
+        }
+        const rect = container.getBoundingClientRect();
+        if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) {
+            return;
+        }
+        event.preventDefault();
+    }, []);
 
     const enableBrowserZoomBlockers = useCallback(() => {
         if (typeof window === "undefined") {
@@ -594,8 +586,7 @@ export const ChartDisplay = ({
             const isVerticalZoom = modifierPressed || isMostlyHorizontalScroll;
             const horizontalDimension = isMobile ? rect.height : rect.width;
             const verticalDimension = rect.height;
-            const primaryDelta =
-                isVerticalZoom && isMostlyHorizontalScroll ? event.deltaX : event.deltaY;
+            const primaryDelta = isVerticalZoom && isMostlyHorizontalScroll ? event.deltaX : event.deltaY;
             if (primaryDelta === 0) {
                 return;
             }
@@ -704,11 +695,7 @@ export const ChartDisplay = ({
             }
 
             const isHorizontalMode = dragState.mode === "x";
-            const dimension = isHorizontalMode
-                ? isMobile
-                    ? rect.height
-                    : rect.width
-                : rect.height;
+            const dimension = isHorizontalMode ? (isMobile ? rect.height : rect.width) : rect.height;
             if (dimension <= 0) {
                 return;
             }
@@ -826,11 +813,44 @@ export const ChartDisplay = ({
     const emptyStateTextClass = theme === "dark" ? "text-sm font-medium text-slate-200" : "text-sm font-medium text-slate-500";
 
     return (
-        <Panel
-            title="Chart"
-            className="space-y-4 sm:space-y-5"
-        >
+        <div className="relative">
+            <Panel
+                title="Chart"
+                className="space-y-4 sm:space-y-5"
+            >
+                <div className="flex flex-col gap-6 lg:flex-row">
+                    <div className="order-2 flex-1 lg:order-1">
+                        <div
+                            ref={containerRef}
+                            className={containerClasses}
+                            onWheelCapture={handleWheel}
+                            onPointerDown={handlePointerDown}
+                            onPointerMove={handlePointerMove}
+                            onPointerUp={handlePointerUp}
+                            onPointerCancel={handlePointerLeave}
+                            onPointerLeave={handlePointerLeave}
+                            onPointerEnter={handlePointerEnter}
+                            onMouseEnter={handleMouseEnter}
+                            onMouseLeave={handleMouseLeave}
+                            onContextMenu={(event) => event.preventDefault()}
+                        >
+                            {hasData ? (
+                                isMobile ? (
+                                    <div className="h-full w-full">{lineChart}</div>
+                                ) : (
+                                    lineChart
+                                )
+                            ) : (
+                                <div className={emptyStateClasses}>
+                                    <p className={emptyStateTextClass}>Configure a function or import data to see the graph.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </Panel>
             <ChartToolbar
+                className="order-1 w-full lg:order-2 lg:w-64 xl:w-72"
                 onZoomIn={onZoomIn}
                 onZoomOut={onZoomOut}
                 onZoomYIn={onZoomYIn}
@@ -843,26 +863,6 @@ export const ChartDisplay = ({
                 onDownloadCsv={onDownloadCsv}
                 theme={theme}
             />
-            <div
-                ref={containerRef}
-                className={containerClasses}
-                onWheelCapture={handleWheel}
-                onPointerDown={handlePointerDown}
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
-                onPointerCancel={handlePointerLeave}
-                onPointerLeave={handlePointerLeave}
-                onPointerEnter={handlePointerEnter}
-                onMouseEnter={handleMouseEnter}
-                onMouseLeave={handleMouseLeave}
-                onContextMenu={(event) => event.preventDefault()}
-            >
-                {hasData ? (isMobile ? <div className="h-full w-full">{lineChart}</div> : lineChart) : (
-                    <div className={emptyStateClasses}>
-                        <p className={emptyStateTextClass}>Configure a function or import data to see the graph.</p>
-                    </div>
-                )}
-            </div>
-        </Panel>
+        </div>
     );
 };

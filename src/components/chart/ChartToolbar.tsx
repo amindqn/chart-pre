@@ -13,6 +13,7 @@ interface ChartToolbarProps {
     onReset: () => void;
     onDownloadCsv: () => void;
     theme: ThemeMode;
+    className?: string;
 }
 
 export const ChartToolbar = ({
@@ -27,6 +28,7 @@ export const ChartToolbar = ({
     onReset,
     onDownloadCsv,
     theme,
+    className,
 }: ChartToolbarProps) => {
     const isDark = theme === "dark";
 
@@ -52,8 +54,15 @@ export const ChartToolbar = ({
     ].join(" ");
 
     return (
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative mx-auto h-52 w-52 max-w-full sm:mx-0">
+        <div
+            className={[
+                "flex flex-col items-center gap-4 lg:gap-6",
+                className ?? "",
+            ]
+                .join(" ")
+                .trim()}
+        >
+            <div className="relative mx-auto h-48 w-48 max-w-full sm:h-52 sm:w-52">
                 <div className="relative h-full w-full">
                     <JoystickSvg mode={theme} className="absolute inset-0 h-full w-full" />
 
@@ -125,11 +134,11 @@ export const ChartToolbar = ({
                 </div>
             </div>
 
-            <div className="flex flex-wrap justify-center gap-3 sm:justify-end">
-                <button type="button" className={utilityButtonClass} onClick={onReset}>
+            <div className="flex w-full flex-col items-stretch gap-3 sm:flex-row">
+                <button type="button" className={`${utilityButtonClass} w-full sm:flex-1`} onClick={onReset}>
                     Reset View
                 </button>
-                <button type="button" className={utilityButtonClass} onClick={onDownloadCsv}>
+                <button type="button" className={`${utilityButtonClass} w-full sm:flex-1`} onClick={onDownloadCsv}>
                     Export CSV
                 </button>
             </div>
